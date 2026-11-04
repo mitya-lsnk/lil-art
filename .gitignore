@@ -34,3 +34,6 @@ design/lil-art.html
 .metrics/
 /target/
 .build/
+
+# reference pictures for refactoring checks (tools/golden.sh)
+golden/
