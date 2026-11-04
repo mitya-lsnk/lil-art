@@ -98,56 +98,11 @@ enum ControlNets {
 
   // MARK: what each one reads
 
-  enum Input {
-    /// The engine makes it from the picture being edited.
-    case source
-    /// From the extra pictures (moodboard).
-    case references
-    /// A ready picture of this hint kind, given by the person.
-    case picture(String)
-    /// A depth map: made by the engine from the picture if its depth model is on disk,
-    /// otherwise a ready one is needed.
-    case depth
-  }
+  typealias Input = ControlHints.Input
 
-  /// The union kind reads any of these; the person picks one.
-  static let unionHints = ["canny", "depth", "pose", "tile", "blur", "gray", "lowquality"]
-
-  static func input(for hint: String) -> Input {
-    switch hint {
-    case "canny", "softedge", "mlsd", "tile", "blur", "gray", "lowquality", "inpaint", "ip2p":
-      return .source
-    case "shuffle": return .references
-    case "depth": return .depth
-    case "pose": return .picture("pose")
-    case "scribble": return .picture("scribble")
-    case "color": return .picture("color")
-    default: return .picture("custom")
-    }
-  }
-
-  static func label(for hint: String) -> String {
-    switch hint {
-    case "canny": return "контуры"
-    case "depth": return "глубина"
-    case "pose": return "поза"
-    case "scribble": return "набросок"
-    case "lineart": return "линии"
-    case "softedge": return "мягкие края"
-    case "normalbae": return "нормали"
-    case "seg": return "сегменты"
-    case "mlsd": return "прямые линии"
-    case "tile": return "тайл (детали)"
-    case "blur": return "из размытого"
-    case "gray": return "раскрасить ч/б"
-    case "lowquality": return "из плохого качества"
-    case "inpaint": return "инпейнт"
-    case "ip2p": return "инструкция"
-    case "shuffle": return "стиль с картинки"
-    case "color": return "цветовая карта"
-    default: return hint
-    }
-  }
+  static var unionHints: [String] { ControlHints.unionHints }
+  static func input(for hint: String) -> Input { ControlHints.input(for: hint) }
+  static func label(for hint: String) -> String { ControlHints.label(for: hint) }
 
   /// Extra files some kinds need to make their input from the picture.
   static let depthModel = "depth_anything_v2.0_f16.ckpt"

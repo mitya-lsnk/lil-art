@@ -83,41 +83,48 @@ func loadJobs(
   }
   guard let list = raw as? [[String: Any]] else { throw Fail("\(path): ждали список объектов [{id, prompt, count}]") }
   guard !list.isEmpty else { throw Fail("\(path): список пуст") }
-  let known: Set<String> = ["id", "prompt", "count", "seed", "width", "height"]
   var jobs: [Job] = []
   for (index, item) in list.enumerated() {
-    let place = "\(path), задание \(index + 1)"
-    guard let id = item["id"] as? String,
-      id.range(of: #"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"#, options: .regularExpression) != nil
-    else {
-      throw Fail("\(place): id нужен строкой из латиницы, цифр, . _ - (он же имя папки)")
-    }
-    guard let prompt = (item["prompt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-      !prompt.isEmpty
-    else { throw Fail("\(place) (\(id)): пустой prompt") }
-    func number(_ key: String) throws -> Int? {
-      guard let value = item[key] else { return nil }
-      guard let n = value as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(),
-        n.doubleValue == n.doubleValue.rounded()
-      else { throw Fail("\(place) (\(id)): \(key) должен быть целым числом") }
-      return n.intValue
-    }
-    let count = try number("count") ?? 1
-    guard count >= 1 else { throw Fail("\(place) (\(id)): count должен быть от 1") }
-    var seed: UInt32?
-    if let s = try number("seed") {
-      guard let v = UInt32(exactly: s) else { throw Fail("\(place) (\(id)): seed от 0 до \(UInt32.max)") }
-      seed = v
-    }
-    let w = try checkSize(try number("width") ?? width, "\(id): width")
-    let h = try checkSize(try number("height") ?? height, "\(id): height")
-    let extra = Set(item.keys).subtracting(known)
-    if !extra.isEmpty {
-      warn("внимание: \(id): поля \(extra.sorted().joined(separator: ", ")) не поддерживаются и пропущены")
-    }
-    jobs.append(Job(id: id, prompt: prompt, count: count, seed: seed, width: w, height: h))
+    jobs.append(try job(from: item, place: "\(path), задание \(index + 1)", width: width, height: height, warn: warn))
   }
   return jobs
+}
+
+private let knownJobFields: Set<String> = ["id", "prompt", "count", "seed", "width", "height"]
+
+/// One entry of a jobs file, checked field by field; `place` names it in every message.
+private func job(
+  from item: [String: Any], place: String, width: Int, height: Int, warn: (String) -> Void
+) throws -> Job {
+  guard let id = item["id"] as? String,
+    id.range(of: #"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"#, options: .regularExpression) != nil
+  else {
+    throw Fail("\(place): id нужен строкой из латиницы, цифр, . _ - (он же имя папки)")
+  }
+  guard let prompt = (item["prompt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+    !prompt.isEmpty
+  else { throw Fail("\(place) (\(id)): пустой prompt") }
+  func number(_ key: String) throws -> Int? {
+    guard let value = item[key] else { return nil }
+    guard let n = value as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(),
+      n.doubleValue == n.doubleValue.rounded()
+    else { throw Fail("\(place) (\(id)): \(key) должен быть целым числом") }
+    return n.intValue
+  }
+  let count = try number("count") ?? 1
+  guard count >= 1 else { throw Fail("\(place) (\(id)): count должен быть от 1") }
+  var seed: UInt32?
+  if let s = try number("seed") {
+    guard let v = UInt32(exactly: s) else { throw Fail("\(place) (\(id)): seed от 0 до \(UInt32.max)") }
+    seed = v
+  }
+  let w = try checkSize(try number("width") ?? width, "\(id): width")
+  let h = try checkSize(try number("height") ?? height, "\(id): height")
+  let extra = Set(item.keys).subtracting(knownJobFields)
+  if !extra.isEmpty {
+    warn("внимание: \(id): поля \(extra.sorted().joined(separator: ", ")) не поддерживаются и пропущены")
+  }
+  return Job(id: id, prompt: prompt, count: count, seed: seed, width: w, height: h)
 }
 
 /// Variants already in an id's folder: `<id>_<n>_<seed>.png`, by n. New ones continue the
