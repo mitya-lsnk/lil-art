@@ -21,6 +21,10 @@ ROOT="$HOME/lil-art"
 WORK="$ROOT/build"
 SRC="$ROOT/app/Sources/LilArt"
 GEN_SRC="$ROOT/app/Sources/LilArtGen"
+# Logic with no engine and no window in it lives in its own small package, where `swift test`
+# runs in seconds (app/Core). Its files are copied into the app and the generator like the
+# rest, so nothing about how they are built changes.
+CORE="$ROOT/app/Core/Sources/LilArtCore"
 # The finished bundle is put together in a ".noindex" folder, which Spotlight never looks
 # into, so search shows only the installed copy in /Applications.
 APP="$ROOT/build.noindex/lil art.app"
@@ -78,7 +82,8 @@ PY
 mkdir -p Sources/LilArtGen
 rm -f Sources/LilArtGen/*.swift
 cp "$GEN_SRC"/*.swift Sources/LilArtGen/
-cp "$SRC/TensorImage.swift" "$SRC/ModelParts.swift" "$SRC/ScaledCheckpoint.swift" "$SRC/WeightCompressor.swift" "$SRC/Storage.swift" Sources/LilArtGen/
+cp "$SRC/TensorImage.swift" "$SRC/ModelParts.swift" "$SRC/WeightCompressor.swift" Sources/LilArtGen/
+cp "$CORE/ScaledCheckpoint.swift" "$CORE/Storage.swift" Sources/LilArtGen/
 
 echo "==> поднимаю движок до свежей версии"
 python3 - <<'PYEOF'
@@ -318,7 +323,7 @@ if [ "$WHAT" != gen ]; then
 echo "==> копирую исходники приложения"
 mkdir -p Sources/LilArt
 rm -f Sources/LilArt/*.swift
-cp "$SRC"/*.swift Sources/LilArt/
+cp "$SRC"/*.swift "$CORE"/*.swift Sources/LilArt/
 
 echo "==> собираю (первый раз это долго)"
 swift build -c release --product LilArt
