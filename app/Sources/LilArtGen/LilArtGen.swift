@@ -75,11 +75,6 @@ let engineLog = home.appendingPathComponent("lil-art/engine.log")
 /// lil art's own settings, so a started engine gets the same port and weights cache.
 let appDefaults = UserDefaults(suiteName: "com.lil.art")
 
-struct Fail: Error, CustomStringConvertible {
-  let description: String
-  init(_ message: String) { description = message }
-}
-
 func say(_ text: String) {
   FileHandle.standardError.write(Data((text + "\n").utf8))
 }
@@ -92,60 +87,6 @@ func emit(_ fields: [String]) {
 
 // MARK: - arguments
 
-struct Arguments {
-  static let withValue: Set<String> = [
-    "--prompt", "--prompt-file", "--negative", "--model", "--width", "--height", "--steps", "--cfg",
-    "--sampler", "--seed", "--out", "--jobs", "--out-dir", "--limit", "--timeout", "--port", "--sheet",
-    "--import-part", "--check-part", "--squeeze", "--plan",
-    "--image", "--mask", "--ref", "--strength", "--count", "--upscaler", "--upscale-factor", "--mask-blur", "--mask-outset", "--lora",
-  ]
-  static let switches: Set<String> = ["--dry-run", "--help", "-h", "--fresh"]
-
-  var values: [String: String] = [:]
-  var flags: Set<String> = []
-
-  init(_ list: [String]) throws {
-    var i = 0
-    while i < list.count {
-      let arg = list[i]
-      if Self.switches.contains(arg) {
-        flags.insert(arg)
-      } else if Self.withValue.contains(arg) {
-        guard i + 1 < list.count else { throw Fail("после \(arg) нужно значение") }
-        guard values[arg] == nil else { throw Fail("\(arg) указан дважды") }
-        values[arg] = list[i + 1]
-        i += 1
-      } else {
-        throw Fail("неизвестный флаг \(arg) (список: lilart-gen --help)")
-      }
-      i += 1
-    }
-  }
-
-  subscript(_ flag: String) -> String? { values[flag] }
-
-  func int(_ flag: String) throws -> Int? {
-    guard let raw = values[flag] else { return nil }
-    guard let v = Int(raw) else { throw Fail("\(flag): ждали целое число, получили «\(raw)»") }
-    return v
-  }
-}
-
-/// The engine refuses sizes that are not multiples of 64 (16 is not enough), and does so
-/// only after the request is sent — so it is checked here, before any GPU time is spent.
-func checkSize(_ value: Int, _ what: String) throws -> Int {
-  guard value % 64 == 0, (64...4096).contains(value) else {
-    let near = max(64, min(4096, Int((Double(value) / 64).rounded()) * 64))
-    throw Fail("\(what) = \(value): нужно кратное 64 от 64 до 4096 (ближайшее: \(near))")
-  }
-  return value
-}
-
-func parseSeed(_ raw: String) throws -> UInt32 {
-  guard let v = UInt32(raw) else { throw Fail("--seed: целое от 0 до \(UInt32.max), получили «\(raw)»") }
-  return v
-}
-
 /// Takes the engine's own name ("DDIM Trailing", "DPM++ 2M Karras") or the code one
 /// (dDIMTrailing, dPMPP2MKarras): case, spaces and punctuation do not matter.
 func parseSampler(_ raw: String) throws -> SamplerType {
@@ -153,76 +94,6 @@ func parseSampler(_ raw: String) throws -> SamplerType {
   func plain(_ text: String) -> String { text.lowercased().filter { $0.isLetter || $0.isNumber } }
   if let s = SamplerType.allCases.first(where: { plain("\($0)") == plain(raw) }) { return s }
   throw Fail("--sampler «\(raw)» неизвестен. Есть: " + SamplerType.allCases.map { "\($0)" }.joined(separator: ", "))
-}
-
-// MARK: - jobs
-
-struct Job {
-  let id: String
-  let prompt: String
-  let count: Int
-  let seed: UInt32?
-  let width: Int
-  let height: Int
-}
-
-func loadJobs(_ path: String, width: Int, height: Int) throws -> [Job] {
-  guard let data = FileManager.default.contents(atPath: path) else { throw Fail("не открылся \(path)") }
-  let raw: Any
-  do { raw = try JSONSerialization.jsonObject(with: data) } catch {
-    throw Fail("\(path): это не JSON (\(error.localizedDescription))")
-  }
-  guard let list = raw as? [[String: Any]] else { throw Fail("\(path): ждали список объектов [{id, prompt, count}]") }
-  guard !list.isEmpty else { throw Fail("\(path): список пуст") }
-  let known: Set<String> = ["id", "prompt", "count", "seed", "width", "height"]
-  var jobs: [Job] = []
-  for (index, item) in list.enumerated() {
-    let place = "\(path), задание \(index + 1)"
-    guard let id = item["id"] as? String,
-      id.range(of: #"^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$"#, options: .regularExpression) != nil
-    else {
-      throw Fail("\(place): id нужен строкой из латиницы, цифр, . _ - (он же имя папки)")
-    }
-    guard let prompt = (item["prompt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-      !prompt.isEmpty
-    else { throw Fail("\(place) (\(id)): пустой prompt") }
-    func number(_ key: String) throws -> Int? {
-      guard let value = item[key] else { return nil }
-      guard let n = value as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID(),
-        n.doubleValue == n.doubleValue.rounded()
-      else { throw Fail("\(place) (\(id)): \(key) должен быть целым числом") }
-      return n.intValue
-    }
-    let count = try number("count") ?? 1
-    guard count >= 1 else { throw Fail("\(place) (\(id)): count должен быть от 1") }
-    var seed: UInt32?
-    if let s = try number("seed") {
-      guard let v = UInt32(exactly: s) else { throw Fail("\(place) (\(id)): seed от 0 до \(UInt32.max)") }
-      seed = v
-    }
-    let w = try checkSize(try number("width") ?? width, "\(id): width")
-    let h = try checkSize(try number("height") ?? height, "\(id): height")
-    let extra = Set(item.keys).subtracting(known)
-    if !extra.isEmpty {
-      say("внимание: \(id): поля \(extra.sorted().joined(separator: ", ")) не поддерживаются и пропущены")
-    }
-    jobs.append(Job(id: id, prompt: prompt, count: count, seed: seed, width: w, height: h))
-  }
-  return jobs
-}
-
-/// Variants already in an id's folder: `<id>_<n>_<seed>.png`, by n. New ones continue the
-/// numbering, so a second round never overwrites the first and the sheet shows both.
-func variants(of id: String, in dir: URL) -> [(n: Int, url: URL)] {
-  let names = (try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []
-  var found: [(Int, URL)] = []
-  for name in names where name.hasPrefix(id + "_") && name.hasSuffix(".png") {
-    let rest = name.dropFirst(id.count + 1).dropLast(4)
-    let parts = rest.split(separator: "_")
-    guard parts.count == 2, let n = Int(parts[0]), UInt32(parts[1]) != nil else { continue }
-    found.append((n, dir.appendingPathComponent(name)))
-  }
-  return found.sorted { $0.0 < $1.0 }.map { (n: $0.0, url: $0.1) }
 }
 
 // MARK: - engine process
@@ -436,31 +307,18 @@ func withTimeout<T: Sendable>(_ seconds: Double, _ work: @escaping @Sendable () 
   }
 }
 
-/// --image / --mask / --ref / --strength / --fresh → the engine's inputs. The mask is any
-/// picture where white (or light) means "redraw" and black "keep"; it is rewritten at the
+/// The picture to change, its mask and the borrowed picture → the engine's inputs. The mask is
+/// any picture where white (or light) means "redraw" and black "keep"; it is rewritten at the
 /// output size in the engine's own levels (0 keep, 2 redraw from what is there, 1 from scratch).
-func editInputs(_ args: Arguments, width: Int, height: Int) throws -> ([MediaGenerationPipeline.Input], Float) {
+func editInputs(_ edit: GenRun.Edit, width: Int, height: Int) throws -> [MediaGenerationPipeline.Input] {
   var inputs: [MediaGenerationPipeline.Input] = []
-  if let image = args["--image"] {
-    guard FileManager.default.fileExists(atPath: image) else { throw Fail("нет файла \(image)") }
-    inputs.append(MediaGenerationPipeline.file(image))
-  } else if args["--mask"] != nil || args["--strength"] != nil {
-    throw Fail("--mask и --strength работают только вместе с --image")
+  if let image = edit.image { inputs.append(MediaGenerationPipeline.file(image)) }
+  if let mask = edit.mask {
+    inputs.append(
+      MediaGenerationPipeline.file(try engineMask(mask, width: width, height: height, fresh: edit.fresh).path).mask())
   }
-  if let mask = args["--mask"] {
-    inputs.append(MediaGenerationPipeline.file(try engineMask(mask, width: width, height: height,
-                                                              fresh: args.flags.contains("--fresh")).path).mask())
-  }
-  if let ref = args["--ref"] {
-    guard FileManager.default.fileExists(atPath: ref) else { throw Fail("нет файла \(ref)") }
-    inputs.append(MediaGenerationPipeline.file(ref).moodboard())
-  }
-  var strength: Float = 1
-  if let raw = args["--strength"] {
-    guard let v = Float(raw), v > 0, v <= 1 else { throw Fail("--strength: число больше 0 и не больше 1") }
-    strength = v
-  }
-  return (inputs, strength)
+  if let ref = edit.ref { inputs.append(MediaGenerationPipeline.file(ref).moodboard()) }
+  return inputs
 }
 
 func engineMask(_ path: String, width: Int, height: Int, fresh: Bool) throws -> URL {
@@ -753,288 +611,208 @@ struct LilArtGen {
   static func main() async {
     // Line by line even into a file, so a caller watching the output sees each picture land.
     setvbuf(stdout, nil, _IOLBF, 0)
-    let args: Arguments
-    do { args = try Arguments(Array(CommandLine.arguments.dropFirst())) } catch {
-      say("ошибка: \(error)")
+    var environment = GenCommand.Environment()
+    environment.appPort = appDefaults?.integer(forKey: "engine.port") ?? 0
+    environment.defaultModel = defaultModel
+    environment.modelsDir = modelsDir
+    let command: GenCommand
+    do { command = try GenCommand.parse(Array(CommandLine.arguments.dropFirst()), environment) } catch {
+      fail(error)
+    }
+    switch command {
+    case .help(let failed):
+      say(usage)
+      exit(failed ? 1 : 0)
+    case .sheet(let dir, let alone):
+      rebuildSheet(dir, alone: alone)
+    case .part(let source, let checkOnly):
+      runPart(source, checkOnly: checkOnly)
+    case .squeeze(let input, let out, let bits, let important, let edge):
+      runSqueeze(
+        input: input, out: out,
+        plan: CompressionPlan(bits: bits, importantBits: important, edgeBlocks: edge))
+    case .generate(let run):
+      await generate(run)
+    }
+  }
+
+  static func fail(_ error: Error) -> Never {
+    say("ошибка: \(error)")
+    exit(1)
+  }
+
+  // MARK: contact sheet
+
+  /// Rebuilds one id's contact sheet from whatever variants are in its folder now.
+  static func rebuildSheet(_ dir: URL, alone: Bool) -> Never {
+    let id = dir.lastPathComponent
+    let files = variants(of: id, in: dir)
+    guard alone, !files.isEmpty else {
+      say(files.isEmpty ? "ошибка: в \(dir.path) нет файлов \(id)_<n>_<seed>.png" : "ошибка: --sheet ни с чем не сочетается")
       exit(1)
     }
-    if args.flags.contains("--help") || args.flags.contains("-h") || args.values.isEmpty {
-      say(usage)
-      exit(args.values.isEmpty && args.flags.isEmpty ? 1 : 0)
-    }
+    let sheet = dir.appendingPathComponent("\(id)_sheet.png")
+    do { try Sheet.write(files, to: sheet) } catch { fail(error) }
+    emit(["SHEET", id, String(files.count), sheet.path])
+    exit(0)
+  }
 
-    if let path = args["--sheet"] {
-      // Rebuilds one id's contact sheet from whatever variants are in its folder now.
-      let dir = URL(fileURLWithPath: path).standardizedFileURL
-      let id = dir.lastPathComponent
-      let files = variants(of: id, in: dir)
-      guard args.values.count == 1, !files.isEmpty else {
-        say(files.isEmpty ? "ошибка: в \(dir.path) нет файлов \(id)_<n>_<seed>.png" : "ошибка: --sheet ни с чем не сочетается")
-        exit(1)
+  /// Prints a percentage each time it crosses a multiple of `every`.
+  static func progressPrinter(every: Int) -> (Double) -> Void {
+    var shown = -1
+    return { fraction in
+      let percent = Int(fraction * 100)
+      if percent / every != shown / every {
+        shown = percent
+        say("  \(percent)%")
       }
-      let sheet = dir.appendingPathComponent("\(id)_sheet.png")
-      do { try Sheet.write(files, to: sheet) } catch {
-        say("ошибка: \(error)")
-        exit(1)
-      }
-      emit(["SHEET", id, String(files.count), sheet.path])
-      exit(0)
     }
+  }
 
-    if let path = args["--check-part"] ?? args["--import-part"] {
-      // The same pairing and conversion the models window runs on a dropped file; no engine.
-      guard args.values.count == 1 else {
-        say("ошибка: --check-part и --import-part ни с чем не сочетаются")
-        exit(1)
-      }
-      let source = URL(fileURLWithPath: path).standardizedFileURL
-      let catalog = home.appendingPathComponent("lil-art/cache/models.json")
-      let started = Date()
-      var shown = -1
-      let progress: (Double) -> Void = { fraction in
-        let percent = Int(fraction * 100)
-        if percent / 5 != shown / 5 {
-          shown = percent
-          say("  \(percent)%")
-        }
-      }
-      do {
-        if args["--check-part"] != nil {
-          let checks = try ModelParts.check(source, in: modelsDir, catalog: catalog, progress: progress)
-          if checks.isEmpty { say("ни одна установленная стандартная часть не подходит по размерам слоёв") }
-          for c in checks {
-            let ways = c.transforms.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }
-              .joined(separator: ",")
-            emit([
-              c.matched == c.total ? "MATCH" : "PARTIAL", c.stock, c.slot.rawValue, "\(c.matched)/\(c.total)",
-              String(format: "min=%.4f mean=%.5f", c.weakest, c.mean), ways,
-            ])
-          }
-        } else {
-          let outcome = try ModelParts.install(source, in: modelsDir, catalog: catalog, progress: progress)
+  // MARK: parts (VAE, text encoder)
+
+  /// The same pairing and conversion the models window runs on a dropped file; no engine.
+  static func runPart(_ source: URL, checkOnly: Bool) -> Never {
+    let catalog = home.appendingPathComponent("lil-art/cache/models.json")
+    let started = Date()
+    let progress = progressPrinter(every: 5)
+    do {
+      if checkOnly {
+        let checks = try ModelParts.check(source, in: modelsDir, catalog: catalog, progress: progress)
+        if checks.isEmpty { say("ни одна установленная стандартная часть не подходит по размерам слоёв") }
+        for c in checks {
+          let ways = c.transforms.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }
+            .joined(separator: ",")
           emit([
-            "PART", outcome.file, outcome.entry.slot.rawValue, outcome.entry.stock,
-            String(format: "%.0f", Date().timeIntervalSince(started)),
+            c.matched == c.total ? "MATCH" : "PARTIAL", c.stock, c.slot.rawValue, "\(c.matched)/\(c.total)",
+            String(format: "min=%.4f mean=%.5f", c.weakest, c.mean), ways,
           ])
         }
-      } catch {
-        say("ошибка: \(error)")
-        exit(1)
-      }
-      exit(0)
-    }
-
-    if let path = args["--squeeze"] {
-      guard let outPath = args["--out"] else {
-        say("ошибка: для --squeeze нужен --out")
-        exit(1)
-      }
-      let input = URL(fileURLWithPath: path, relativeTo: modelsDir).standardizedFileURL.path
-      let parts = (args["--plan"] ?? "8/8").split(separator: "/").compactMap { Int($0) }
-      var plan = CompressionPlan(bits: parts.first ?? 8, importantBits: parts.last ?? 8, edgeBlocks: 2)
-      if plan.bits == plan.importantBits { plan.edgeBlocks = 0 }
-      // the family decides what stays at 16 bits; custom.json or the catalog knows it
-      let file = URL(fileURLWithPath: input).lastPathComponent
-      var family = ""
-      for url in [modelsDir.appendingPathComponent("custom.json"), home.appendingPathComponent("lil-art/cache/models.json")] {
-        guard family.isEmpty, let data = try? Data(contentsOf: url),
-          let raw = try? JSONSerialization.jsonObject(with: data)
-        else { continue }
-        let items = (raw as? [[String: Any]]) ?? ((raw as? [String: Any])?["models"] as? [[String: Any]]) ?? []
-        family = (items.first { ($0["file"] as? String) == file }?["version"] as? String) ?? ""
-      }
-      guard WeightCompressor.canCompress(family) else {
-        say("ошибка: семейство «\(family)» сжимать не умею")
-        exit(1)
-      }
-      let estimate = WeightCompressor.estimate(input: input, version: family, plan: plan) ?? 0
-      say(String(format: "семейство %@, план %@, оценка %.2f ГБ", family, plan.label, Double(estimate) / 1_073_741_824))
-      let started = Date()
-      var shown = -1
-      do {
-        try WeightCompressor.compress(
-          input: input, output: outPath, version: family, plan: plan,
-          progress: { fraction in
-            let percent = Int(fraction * 100)
-            if percent / 10 != shown / 10 {
-              shown = percent
-              say("  \(percent)%")
-            }
-          })
-      } catch {
-        say("ошибка: \(error)")
-        exit(1)
-      }
-      let size = (try? FileManager.default.attributesOfItem(atPath: outPath)[.size] as? Int64) ?? 0
-      say(String(format: "записано %.2f ГБ за %.0f с; сверяю слои", Double(size) / 1_073_741_824, Date().timeIntervalSince(started)))
-      // every tensor read back and compared with the original: relative error of the numbers
-      var worst = 0.0
-      var sum = 0.0
-      var counted = 0
-      var worstKey = ""
-      let graph = DynamicGraph()
-      let codecs: DynamicGraph.Store.Codec = [.q8p, .q6p, .q5p, .q4p, .i8x, .ezm7, .externalData]
-      graph.openStore(input, flags: .readOnly) { original in
-        graph.openStore(outPath, flags: .readOnly) { copy in
-          for key in original.keys {
-            // the packed k formats unpack only on the GPU, the way the engine reads them
-            guard let a = original.read(key, codec: codecs),
-              let b = copy.read(key, kind: .GPU(0), codec: codecs)
-            else {
-              say("  нет слоя \(key)")
-              continue
-            }
-            let x = Tensor<Float>(from: a)
-            let y: Tensor<Float>
-            switch b.dataType {
-            case .Float32: y = Tensor<Float>(b).toCPU()
-            default: y = Tensor<Float>(from: Tensor<Float16>(b).toCPU())
-            }
-            let n = x.shape.reduce(1, *)
-            guard n == y.shape.reduce(1, *), n > 1 else { continue }
-            var err = 0.0
-            var mag = 0.0
-            x.withUnsafeBytes { xr in
-              y.withUnsafeBytes { yr in
-                let xp = xr.bindMemory(to: Float.self)
-                let yp = yr.bindMemory(to: Float.self)
-                for i in 0..<n {
-                  let d = Double(xp[i] - yp[i])
-                  err += d * d
-                  mag += Double(xp[i]) * Double(xp[i])
-                }
-              }
-            }
-            let rel = mag > 0 ? (err / mag).squareRoot() : 0
-            sum += rel
-            counted += 1
-            if rel > worst {
-              worst = rel
-              worstKey = key
-            }
-          }
-        }
-      }
-      emit([
-        "SQUEEZE", outPath, String(format: "%.2fGB", Double(size) / 1_073_741_824),
-        String(format: "mean_err=%.4f", counted > 0 ? sum / Double(counted) : 0),
-        String(format: "worst_err=%.4f", worst), worstKey,
-      ])
-      exit(0)
-    }
-
-    let appPort = appDefaults?.integer(forKey: "engine.port") ?? 0
-    let port: Int
-    let engine: Engine
-    let runner: Runner
-    let jobs: [Job]?
-    let single: Shot?
-    var extra: [Shot] = []
-    do {
-      port = try args.int("--port") ?? ((1...65535).contains(appPort) ? appPort : 7859)
-      guard (1...65535).contains(port) else { throw Fail("--port вне 1…65535") }
-      let width = try checkSize(try args.int("--width") ?? 1024, "--width")
-      let height = try checkSize(try args.int("--height") ?? 1024, "--height")
-      let model = args["--model"] ?? defaultModel
-      if model.hasSuffix(".ckpt"),
-        !FileManager.default.fileExists(atPath: modelsDir.appendingPathComponent(model).path)
-      {
-        throw Fail("модели \(model) нет в \(modelsDir.path)")
-      }
-      var steps: Int?
-      if let v = try args.int("--steps") {
-        guard (1...150).contains(v) else { throw Fail("--steps от 1 до 150") }
-        steps = v
-      }
-      var cfg: Float?
-      if let raw = args["--cfg"] {
-        guard let v = Float(raw), v.isFinite, v >= 0, v <= 50 else { throw Fail("--cfg: число от 0 до 50") }
-        cfg = v
-      }
-      let sampler = try args["--sampler"].map(parseSampler)
-      var timeout = 600.0
-      if let raw = args["--timeout"] {
-        guard let v = Double(raw), v >= 10 else { throw Fail("--timeout: секунды, не меньше 10") }
-        timeout = v
-      }
-      let limitArg = try args.int("--limit")
-      if let limitArg, limitArg < 1 { throw Fail("--limit должен быть от 1") }
-
-      if let jobsPath = args["--jobs"] {
-        for flag in ["--prompt", "--prompt-file", "--out", "--seed", "--image", "--mask", "--ref", "--count", "--strength"] where args[flag] != nil {
-          throw Fail("\(flag) не сочетается с --jobs: промпт, сид и имена файлов берутся из заданий")
-        }
-        guard args["--out-dir"] != nil else { throw Fail("для --jobs нужен --out-dir") }
-        guard let limitArg else {
-          throw Fail("для --jobs нужен --limit N — жёсткий потолок генераций за запуск")
-        }
-        jobs = try loadJobs(jobsPath, width: width, height: height)
-        single = nil
-        engine = Engine(port: port)
-        runner = Runner(engine: engine, model: model, negative: args["--negative"] ?? "",
-                        overrides: (steps, cfg, sampler), limit: limitArg, timeout: timeout)
       } else {
-        guard args["--out-dir"] == nil else { throw Fail("--out-dir только вместе с --jobs; для одной картинки --out") }
-        let prompt: String
-        if let file = args["--prompt-file"] {
-          guard args["--prompt"] == nil else { throw Fail("либо --prompt, либо --prompt-file") }
-          guard let data = FileManager.default.contents(atPath: file),
-            let text = String(data: data, encoding: .utf8)
-          else { throw Fail("не прочитался \(file)") }
-          prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        } else {
-          prompt = (args["--prompt"] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        guard !prompt.isEmpty else { throw Fail("нужен --prompt или --prompt-file (или --jobs)") }
-        let seed = try args["--seed"].map(parseSeed) ?? UInt32.random(in: 0...UInt32.max)
-        let out = URL(fileURLWithPath: args["--out"] ?? "lilart_\(seed).png").standardizedFileURL
-        guard out.pathExtension.lowercased() == "png" else { throw Fail("--out должен кончаться на .png") }
-        let count = try args.int("--count") ?? 1
-        guard (1...8).contains(count) else { throw Fail("--count от 1 до 8") }
-        // several variants of one request: seed, seed+1, … into out_1.png, out_2.png, …
-        let stem = out.deletingPathExtension().path
-        single = Shot(id: "single", n: 1, seed: seed, prompt: prompt, width: width, height: height,
-                      destination: count == 1 ? out : URL(fileURLWithPath: stem + "_1.png"))
-        extra = (1..<count).map { i in
-          Shot(id: "single", n: i + 1, seed: seed &+ UInt32(i), prompt: prompt, width: width, height: height,
-               destination: URL(fileURLWithPath: stem + "_\(i + 1).png"))
-        }
-        jobs = nil
-        engine = Engine(port: port)
-        runner = Runner(engine: engine, model: model, negative: args["--negative"] ?? "",
-                        overrides: (steps, cfg, sampler), limit: min(limitArg ?? count, count), timeout: timeout)
-        (runner.inputs, runner.strength) = try editInputs(args, width: width, height: height)
-        if let raw = args["--mask-blur"] {
-          guard let v = Float(raw), (0...64).contains(v) else { throw Fail("--mask-blur: 0…64") }
-          runner.maskBlur = v
-        }
-        runner.maskOutset = try args.int("--mask-outset")
-        runner.masked = args["--mask"] != nil
-        if let list = args["--lora"] {
-          // "file.ckpt:0.8,other.ckpt:0.5"
-          for item in list.split(separator: ",") {
-            let parts = item.split(separator: ":", maxSplits: 1).map(String.init)
-            let file = parts[0].trimmingCharacters(in: .whitespaces)
-            guard FileManager.default.fileExists(atPath: modelsDir.appendingPathComponent(file).path) else {
-              throw Fail("LoRA \(file) нет в \(modelsDir.path)")
-            }
-            let weight = parts.count > 1 ? Float(parts[1]) ?? 1 : 1
-            runner.loras.append(LoRA(file: file, weight: weight))
-          }
-        }
-        if let up = args["--upscaler"] {
-          guard FileManager.default.fileExists(atPath: modelsDir.appendingPathComponent(up).path) else {
-            throw Fail("апскейлера \(up) нет в \(modelsDir.path)")
-          }
-          runner.upscaler = up
-          runner.upscaleFactor = try args.int("--upscale-factor") ?? 2
-          guard [2, 4].contains(runner.upscaleFactor) else { throw Fail("--upscale-factor: 2 или 4") }
-        }
+        let outcome = try ModelParts.install(source, in: modelsDir, catalog: catalog, progress: progress)
+        emit([
+          "PART", outcome.file, outcome.entry.slot.rawValue, outcome.entry.stock,
+          String(format: "%.0f", Date().timeIntervalSince(started)),
+        ])
       }
-    } catch {
-      say("ошибка: \(error)")
+    } catch { fail(error) }
+    exit(0)
+  }
+
+  // MARK: squeezing a model
+
+  /// The family decides what stays at 16 bits; custom.json or the catalog knows it.
+  static func familyOfModel(named file: String) -> String {
+    for url in [modelsDir.appendingPathComponent("custom.json"), home.appendingPathComponent("lil-art/cache/models.json")] {
+      guard let data = try? Data(contentsOf: url), let raw = try? JSONSerialization.jsonObject(with: data)
+      else { continue }
+      let items = (raw as? [[String: Any]]) ?? ((raw as? [String: Any])?["models"] as? [[String: Any]]) ?? []
+      if let family = items.first(where: { ($0["file"] as? String) == file })?["version"] as? String,
+        !family.isEmpty
+      {
+        return family
+      }
+    }
+    return ""
+  }
+
+  static func runSqueeze(input name: String, out outPath: String, plan: CompressionPlan) -> Never {
+    let input = URL(fileURLWithPath: name, relativeTo: modelsDir).standardizedFileURL.path
+    let family = familyOfModel(named: URL(fileURLWithPath: input).lastPathComponent)
+    guard WeightCompressor.canCompress(family) else {
+      say("ошибка: семейство «\(family)» сжимать не умею")
       exit(1)
     }
+    let estimate = WeightCompressor.estimate(input: input, version: family, plan: plan) ?? 0
+    say(String(format: "семейство %@, план %@, оценка %.2f ГБ", family, plan.label, Double(estimate) / 1_073_741_824))
+    let started = Date()
+    do {
+      try WeightCompressor.compress(
+        input: input, output: outPath, version: family, plan: plan, progress: progressPrinter(every: 10))
+    } catch { fail(error) }
+    let size = (try? FileManager.default.attributesOfItem(atPath: outPath)[.size] as? Int64) ?? 0
+    say(String(format: "записано %.2f ГБ за %.0f с; сверяю слои", Double(size) / 1_073_741_824, Date().timeIntervalSince(started)))
+    let report = compareLayers(original: input, copy: outPath)
+    emit([
+      "SQUEEZE", outPath, String(format: "%.2fGB", Double(size) / 1_073_741_824),
+      String(format: "mean_err=%.4f", report.counted > 0 ? report.sum / Double(report.counted) : 0),
+      String(format: "worst_err=%.4f", report.worst), report.worstKey,
+    ])
+    exit(0)
+  }
+
+  /// Every tensor read back and compared with the original: relative error of the numbers.
+  static func compareLayers(original input: String, copy outPath: String)
+    -> (worst: Double, sum: Double, counted: Int, worstKey: String)
+  {
+    var report = (worst: 0.0, sum: 0.0, counted: 0, worstKey: "")
+    let graph = DynamicGraph()
+    let codecs: DynamicGraph.Store.Codec = [.q8p, .q6p, .q5p, .q4p, .i8x, .ezm7, .externalData]
+    graph.openStore(input, flags: .readOnly) { original in
+      graph.openStore(outPath, flags: .readOnly) { copy in
+        for key in original.keys {
+          // the packed k formats unpack only on the GPU, the way the engine reads them
+          guard let a = original.read(key, codec: codecs),
+            let b = copy.read(key, kind: .GPU(0), codec: codecs)
+          else {
+            say("  нет слоя \(key)")
+            continue
+          }
+          guard let rel = relativeError(Tensor<Float>(from: a), b) else { continue }
+          report.sum += rel
+          report.counted += 1
+          if rel > report.worst {
+            report.worst = rel
+            report.worstKey = key
+          }
+        }
+      }
+    }
+    return report
+  }
+
+  /// √(Σ(x − y)² / Σx²) of two tensors of the same size; nil when they differ in size or hold one number.
+  static func relativeError(_ x: Tensor<Float>, _ b: AnyTensor) -> Double? {
+    let y: Tensor<Float>
+    switch b.dataType {
+    case .Float32: y = Tensor<Float>(b).toCPU()
+    default: y = Tensor<Float>(from: Tensor<Float16>(b).toCPU())
+    }
+    let n = x.shape.reduce(1, *)
+    guard n == y.shape.reduce(1, *), n > 1 else { return nil }
+    var err = 0.0
+    var mag = 0.0
+    x.withUnsafeBytes { xr in
+      y.withUnsafeBytes { yr in
+        let xp = xr.bindMemory(to: Float.self)
+        let yp = yr.bindMemory(to: Float.self)
+        for i in 0..<n {
+          let d = Double(xp[i] - yp[i])
+          err += d * d
+          mag += Double(xp[i]) * Double(xp[i])
+        }
+      }
+    }
+    return mag > 0 ? (err / mag).squareRoot() : 0
+  }
+
+  // MARK: pictures
+
+  /// What a run needs after the command line is read: the engine, the runner with its budget, and
+  /// either one request (with its extra variants) or the jobs of a batch.
+  struct Prepared {
+    let engine: Engine
+    let runner: Runner
+    var jobs: [Job]?
+    var single: Shot?
+    var extra: [Shot] = []
+  }
+
+  static func generate(_ run: GenRun) async {
+    let prepared: Prepared
+    do { prepared = try prepare(run) } catch { fail(error) }
+    let engine = prepared.engine
+    let runner = prepared.runner
 
     // Ctrl-C or a kill from a caller: an engine this run started must not stay behind holding
     // 18 GB. (SIGKILL cannot be caught; lil art clears such a leftover when it next starts.)
@@ -1052,28 +830,72 @@ struct LilArtGen {
     }
     defer { withExtendedLifetime(watchers) {} }
 
-    if let single {
-      say("сид: \(single.seed)")
-      if args.flags.contains("--dry-run") {
-        say("--dry-run: была бы 1 картинка \(single.width)×\(single.height) → \(single.destination.path)")
-        await showSettings(runner, engine: engine)
-        exit(0)
-      }
-      await runner.shoot(single)
-      for shot in extra where runner.budgetLeft { await runner.shoot(shot) }
-      finish(runner, engine: engine)
+    if let single = prepared.single {
+      await runSingle(single, extra: prepared.extra, runner: runner, engine: engine, dryRun: run.dryRun)
     }
+    guard let jobs = prepared.jobs, case .batch(_, let outDir, _) = run.mode else { return }
+    await runBatch(jobs, outDir: URL(fileURLWithPath: outDir).standardizedFileURL, runner: runner, engine: engine, dryRun: run.dryRun)
+  }
 
-    guard let jobs else { return }
-    let outDir = URL(fileURLWithPath: args["--out-dir"]!).standardizedFileURL
-    let requested = jobs.reduce(0) { $0 + $1.count }
-    var left = runner.limit
-    var plan: [(Job, Int)] = []
-    for job in jobs {
-      let take = min(job.count, left)
-      plan.append((job, take))
-      left -= take
+  static func prepare(_ run: GenRun) throws -> Prepared {
+    let sampler = try run.sampler.map(parseSampler)
+    let engine = Engine(port: run.port)
+    let overrides = (steps: run.steps, cfg: run.cfg, sampler: sampler)
+    switch run.mode {
+    case .batch(let jobsPath, _, let limit):
+      let jobs = try loadJobs(jobsPath, width: run.width, height: run.height, warn: say)
+      let runner = Runner(engine: engine, model: run.model, negative: run.negative,
+                          overrides: overrides, limit: limit, timeout: run.timeout)
+      return Prepared(engine: engine, runner: runner, jobs: jobs)
+    case .single(let s):
+      // several variants of one request: seed, seed+1, … into out_1.png, out_2.png, …
+      let stem = s.out.deletingPathExtension().path
+      func shot(_ i: Int) -> Shot {
+        Shot(id: "single", n: i + 1, seed: s.seed &+ UInt32(i), prompt: s.prompt, width: run.width,
+             height: run.height,
+             destination: i == 0 && s.count == 1 ? s.out : URL(fileURLWithPath: stem + "_\(i + 1).png"))
+      }
+      let runner = Runner(engine: engine, model: run.model, negative: run.negative,
+                          overrides: overrides, limit: min(run.limit ?? s.count, s.count), timeout: run.timeout)
+      runner.inputs = try editInputs(s.edit, width: run.width, height: run.height)
+      runner.strength = s.edit.strength
+      runner.maskBlur = s.maskBlur
+      runner.maskOutset = s.maskOutset
+      runner.masked = s.edit.mask != nil
+      runner.loras = s.loras.map { LoRA(file: $0.file, weight: $0.weight) }
+      if let up = s.upscaler {
+        runner.upscaler = up
+        runner.upscaleFactor = s.upscaleFactor
+      }
+      return Prepared(engine: engine, runner: runner, single: shot(0), extra: (1..<s.count).map(shot))
     }
+  }
+
+  static func runSingle(_ single: Shot, extra: [Shot], runner: Runner, engine: Engine, dryRun: Bool) async -> Never {
+    say("сид: \(single.seed)")
+    if dryRun {
+      say("--dry-run: была бы 1 картинка \(single.width)×\(single.height) → \(single.destination.path)")
+      await showSettings(runner, engine: engine)
+      exit(0)
+    }
+    await runner.shoot(single)
+    for shot in extra where runner.budgetLeft { await runner.shoot(shot) }
+    finish(runner, engine: engine)
+  }
+
+  /// How many pictures each job gets of the ceiling, in the order of the file.
+  static func allocate(_ jobs: [Job], limit: Int) -> [(Job, Int)] {
+    var left = limit
+    return jobs.map { job in
+      let take = min(job.count, left)
+      left -= take
+      return (job, take)
+    }
+  }
+
+  static func runBatch(_ jobs: [Job], outDir: URL, runner: Runner, engine: Engine, dryRun: Bool) async {
+    let requested = jobs.reduce(0) { $0 + $1.count }
+    let plan = allocate(jobs, limit: runner.limit)
     say("план: \(min(requested, runner.limit)) из \(requested) запрошенных, лимит \(runner.limit), папка \(outDir.path)")
     for (job, take) in plan {
       say("  \(job.id): \(take) из \(job.count), \(job.width)×\(job.height)" + (job.seed.map { ", сиды с \($0)" } ?? ", сиды случайные"))
@@ -1082,39 +904,41 @@ struct LilArtGen {
       let cut = plan.filter { $0.1 < $0.0.count }.map { "\($0.0.id) (\($0.1)/\($0.0.count))" }
       say("лимит меньше запрошенного: урезаны \(cut.joined(separator: ", "))")
     }
-    if args.flags.contains("--dry-run") {
+    if dryRun {
       await showSettings(runner, engine: engine)
       exit(0)
     }
-
     for (job, take) in plan where take > 0 {
       guard runner.budgetLeft else { break }
-      let dir = outDir.appendingPathComponent(job.id)
-      var n = (variants(of: job.id, in: dir).last?.n ?? 0) + 1
-      var made = 0
-      for k in 0..<take {
-        guard runner.budgetLeft else { break }
-        let seed = job.seed.map { $0 &+ UInt32(truncatingIfNeeded: k) } ?? UInt32.random(in: 0...UInt32.max)
-        let file = dir.appendingPathComponent("\(job.id)_\(n)_\(seed).png")
-        if await runner.shoot(Shot(id: job.id, n: n, seed: seed, prompt: job.prompt, width: job.width,
-                                   height: job.height, destination: file))
-        {
-          made += 1
-        }
-        n += 1
-      }
-      let all = variants(of: job.id, in: dir)
-      if made > 0, !all.isEmpty {
-        let sheet = dir.appendingPathComponent("\(job.id)_sheet.png")
-        do {
-          try Sheet.write(all, to: sheet)
-          emit(["SHEET", job.id, String(all.count), sheet.path])
-        } catch {
-          say("\(job.id): лист не собрался: \(error)")
-        }
-      }
+      await shootJob(job, take: take, in: outDir.appendingPathComponent(job.id), runner: runner)
     }
     finish(runner, engine: engine)
+  }
+
+  /// One job's pictures, numbered on from what its folder already holds, then its sheet.
+  static func shootJob(_ job: Job, take: Int, in dir: URL, runner: Runner) async {
+    var n = (variants(of: job.id, in: dir).last?.n ?? 0) + 1
+    var made = 0
+    for k in 0..<take {
+      guard runner.budgetLeft else { break }
+      let seed = job.seed.map { $0 &+ UInt32(truncatingIfNeeded: k) } ?? UInt32.random(in: 0...UInt32.max)
+      let file = dir.appendingPathComponent("\(job.id)_\(n)_\(seed).png")
+      if await runner.shoot(Shot(id: job.id, n: n, seed: seed, prompt: job.prompt, width: job.width,
+                                 height: job.height, destination: file))
+      {
+        made += 1
+      }
+      n += 1
+    }
+    let all = variants(of: job.id, in: dir)
+    guard made > 0, !all.isEmpty else { return }
+    let sheet = dir.appendingPathComponent("\(job.id)_sheet.png")
+    do {
+      try Sheet.write(all, to: sheet)
+      emit(["SHEET", job.id, String(all.count), sheet.path])
+    } catch {
+      say("\(job.id): лист не собрался: \(error)")
+    }
   }
 
   /// What the run would use, without spending a generation. Asks only the model's settings.

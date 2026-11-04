@@ -83,7 +83,7 @@ mkdir -p Sources/LilArtGen
 rm -f Sources/LilArtGen/*.swift
 cp "$GEN_SRC"/*.swift Sources/LilArtGen/
 cp "$SRC/TensorImage.swift" "$SRC/ModelParts.swift" "$SRC/WeightCompressor.swift" Sources/LilArtGen/
-cp "$CORE/ScaledCheckpoint.swift" "$CORE/Storage.swift" Sources/LilArtGen/
+cp "$CORE/ScaledCheckpoint.swift" "$CORE/Storage.swift" "$CORE/GenArguments.swift" "$CORE/GenCommand.swift" Sources/LilArtGen/
 
 echo "==> поднимаю движок до свежей версии"
 python3 - <<'PYEOF'
