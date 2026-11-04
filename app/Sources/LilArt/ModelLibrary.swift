@@ -179,24 +179,13 @@ final class ModelLibrary: ObservableObject {
   private var watcher: DispatchSourceFileSystemObject?
   private var rescanTask: Task<Void, Never>?
   private var running = false
-  /// File sizes at the previous look: a file still being copied grows between two looks.
-  private var seenSizes: [String: Int64] = [:]
   /// Files the converter is writing right now, kept out of the list until they are finished.
   private var hidden: Set<String> = []
   private let failedKey = "library.failed"
   private var catalogObserver: AnyCancellable?
 
-  /// Size and modification date of a file at one moment. A file with the same stamp is the
-  /// same file; anything else means someone wrote to it since.
-  private struct FileStamp: Equatable {
-    let size: Int64
-    let modified: Date?
-  }
-  /// Sources the user cancelled. Without this the next folder scan finds the file still
-  /// lying there and queues it again at once.
-  private var cancelled: [String: FileStamp] = [:]
-  /// When an empty file was first noticed, so that waiting for its copy to start has an end.
-  private var emptySince: [String: Date] = [:]
+  /// What the folder remembers between two looks at it (`FolderWatch`).
+  private var folderWatch = FolderWatch()
   /// Final names (lowercased) of engine files being copied in, so two drops never pick one name.
   private var copying: Set<String> = []
 
@@ -276,6 +265,21 @@ final class ModelLibrary: ObservableObject {
   }
 
   func rescan() {
+    let scan = scanFolder()
+    reconcileFailedJobs(failed: failures(), incoming: scan.incoming)
+    let found = scan.found.sorted {
+      $0.role == $1.role ? $0.name.lowercased() < $1.name.lowercased() : $0.role.rank < $1.role.rank
+    }
+    if found != installed {
+      installed = found
+      onListChanged()
+    }
+    if scan.stillCopying { scheduleRescan(after: 2) }
+  }
+
+  /// One look at the folder: the models it holds, the files ready to import, and whether some
+  /// file is still being copied in (so another look is due soon).
+  private func scanFolder() -> (found: [InstalledModel], incoming: [URL], stillCopying: Bool) {
     let fm = FileManager.default
     let urls =
       (try? fm.contentsOfDirectory(
@@ -298,56 +302,44 @@ final class ModelLibrary: ObservableObject {
       present.insert(url.path)
       // a link means a model moved to an external disk: read what it points at
       let target = ModelMover.linkTarget(url)
-      if let target, !FileManager.default.fileExists(atPath: target.path) {
+      let link: FolderWatch.Link =
+        target == nil ? .none : (fm.fileExists(atPath: target!.path) ? .reachable : .broken)
+      let real = target ?? url
+      let stamp = link == .broken ? nil : Self.stamp(of: real)
+      let verdict = folderWatch.look(
+        path: url.path, ext: ext, link: link, isEngineFormat: { ImportRunner.isEngineFormat(real) },
+        stamp: stamp, now: Date())
+      stillCopying = stillCopying || verdict.needsAnotherLook
+      switch verdict {
+      case .away:
         // its disk is unplugged: still listed, as away, but nothing reads it
         if ext == "ckpt",
           var model = classify(
             url, size: 0, custom: custom, parts: parts, catalog: catalogEntries, helpers: helpers)
         {
-          model.storage = .offline(ModelsFolder.volumeName(of: target) ?? "внешний диск")
+          model.storage = .offline(ModelsFolder.volumeName(of: target!) ?? "внешний диск")
           found.append(model)
         }
-        continue
-      }
-      let real = target ?? url
-      let stamp = Self.stamp(of: real)
-      let size = stamp?.size ?? 0
-      if ext == "ckpt", ImportRunner.isEngineFormat(real) {
+      case .model:
         if var model = classify(
-          url, size: size, custom: custom, parts: parts, catalog: catalogEntries,
+          url, size: stamp?.size ?? 0, custom: custom, parts: parts, catalog: catalogEntries,
           helpers: helpers)
         {
           if let target { model.storage = .external(ModelsFolder.volumeName(of: target) ?? "диск") }
           found.append(model)
         }
-      } else if target != nil {
-        // a linked file that is not the engine's: not ours to import
-      } else if size == 0 {
-        // Empty is either a copy that has not started or junk. Give a copy a little time,
-        // then stop looking: otherwise the library rescans every 2 s for as long as the
-        // file lies there.
-        let since = emptySince[url.path] ?? Date()
-        emptySince[url.path] = since
-        if Date().timeIntervalSince(since) < 30 { stillCopying = true }
-      } else if let stamp, cancelled[url.path] == stamp {
-        // the user cancelled exactly this file: leave it alone until it changes
-      } else {
-        emptySince[url.path] = nil
-        cancelled[url.path] = nil
-        if seenSizes[url.path] == size {
-          incoming.append(url)
-        } else {
-          stillCopying = true
-        }
-        seenSizes[url.path] = size
+      case .incoming:
+        incoming.append(url)
+      case .foreignLink, .emptyWaiting, .emptyGaveUp, .cancelledByUser, .growing:
+        break
       }
     }
-    // forget files that left the folder, so a new file with an old name starts from scratch
-    seenSizes = seenSizes.filter { present.contains($0.key) }
-    emptySince = emptySince.filter { present.contains($0.key) }
-    cancelled = cancelled.filter { present.contains($0.key) }
+    folderWatch.forget(except: present)
+    return (found, incoming, stillCopying)
+  }
 
-    let failed = failures()
+  /// Failed rows follow their files, and files ready to import are queued.
+  private func reconcileFailedJobs(failed: [String: String], incoming: [URL]) {
     // A failed row goes away with its file when it is removed through Finder, and also when
     // the file changed after it failed (a copy that finished later): that one gets another go.
     jobs.removeAll { job in
@@ -372,15 +364,6 @@ final class ModelLibrary: ObservableObject {
         enqueue(url, origin: .folder)
       }
     }
-
-    found.sort {
-      $0.role == $1.role ? $0.name.lowercased() < $1.name.lowercased() : $0.role.rank < $1.role.rank
-    }
-    if found != installed {
-      installed = found
-      onListChanged()
-    }
-    if stillCopying { scheduleRescan(after: 2) }
   }
 
   private func classify(
@@ -447,7 +430,7 @@ final class ModelLibrary: ObservableObject {
       }
       if jobs.contains(where: { $0.source.path == url.path && $0.failure == nil }) { continue }
       forgetFailure(url)
-      cancelled[url.path] = nil  // dropped again on purpose, so it is wanted after all
+      folderWatch.cancelled[url.path] = nil  // dropped again on purpose, so it is wanted after all
       enqueue(url, origin: origin)
     }
     rescan()
@@ -599,32 +582,9 @@ final class ModelLibrary: ObservableObject {
     do {
       switch (job.origin, job.role) {
       case (.relocate, _):
-        if job.moveBack {
-          try await ImportRunner.bringBack(
-            job.moveFiles, engine: engineHooks(), cancel: job.cancel, report: report)
-        } else {
-          guard let external = ModelsFolder.external else {
-            throw ImportError.failed("не выбрана папка на внешнем диске")
-          }
-          try await ImportRunner.moveOut(
-            job.moveFiles, to: external, engine: engineHooks(), cancel: job.cancel, report: report)
-        }
-        jobs.removeAll { $0.id == id }
-        rescan()
+        try await relocate(job, report: report)
       case (.catalog, _):
-        guard let entry = job.catalogEntry, let catalog else {
-          throw ImportError.failed("каталог сейчас недоступен")
-        }
-        advance(id, .downloading, 0)
-        let watch = catalog.$progress.sink { fraction in report(.downloading, fraction) }
-        let ok = await withCheckedContinuation { continuation in
-          catalog.download(entry, into: modelsDir) { continuation.resume(returning: $0) }
-        }
-        watch.cancel()
-        guard ok else {
-          throw ImportError.failed(catalog.note.isEmpty ? "не скачалась" : catalog.note)
-        }
-        finish(id, file: entry.file, note: nil)
+        try await download(job, report: report)
       case (_, .upscaler):
         let file = try await ImportRunner.fetch(job.source.lastPathComponent, report: report)
         finish(id, file: file, note: nil)
@@ -641,23 +601,7 @@ final class ModelLibrary: ObservableObject {
           job.source, fallbackFamily: fallbackFamily(), cancel: job.cancel, report: report)
         finish(id, file: file, note: nil)
       case (_, .checkpoint):
-        let writing = ImportRunner.cleanedName(job.source) + "_f16.ckpt"
-        hidden.insert(writing)
-        defer { hidden.remove(writing) }
-        // the half-written file stays out of the list only until the engine comes back with it
-        let base = engineHooks()
-        let hooks = EngineHooks(
-          pause: base.pause,
-          resume: { [weak self] made, replacing in
-            self?.hidden.remove(writing)
-            self?.rescan()
-            await base.resume(made, replacing)
-          },
-          waitIdle: base.waitIdle)
-        let result = try await ImportRunner.importCheckpoint(
-          job.source, engineTag: engineTag(), engine: hooks, cancel: job.cancel, plan: importPlan,
-          report: report)
-        finish(id, file: result.file, note: result.note)
+        try await convertCheckpoint(job, report: report)
       }
     } catch is CancellationError {
       rememberCancelled(job)
@@ -670,6 +614,60 @@ final class ModelLibrary: ObservableObject {
       if isLooseFile(job) { rememberFailure(job.source, reason) }
       rescan()
     }
+  }
+
+  /// Models moved to the external disk or brought back.
+  private func relocate(_ job: ImportJob, report: @escaping ImportRunner.Report) async throws {
+    if job.moveBack {
+      try await ImportRunner.bringBack(
+        job.moveFiles, engine: engineHooks(), cancel: job.cancel, report: report)
+    } else {
+      guard let external = ModelsFolder.external else {
+        throw ImportError.failed("не выбрана папка на внешнем диске")
+      }
+      try await ImportRunner.moveOut(
+        job.moveFiles, to: external, engine: engineHooks(), cancel: job.cancel, report: report)
+    }
+    jobs.removeAll { $0.id == job.id }
+    rescan()
+  }
+
+  /// A model from the catalog, downloaded into the folder.
+  private func download(_ job: ImportJob, report: @escaping ImportRunner.Report) async throws {
+    guard let entry = job.catalogEntry, let catalog else {
+      throw ImportError.failed("каталог сейчас недоступен")
+    }
+    advance(job.id, .downloading, 0)
+    let watch = catalog.$progress.sink { fraction in report(.downloading, fraction) }
+    let ok = await withCheckedContinuation { continuation in
+      catalog.download(entry, into: modelsDir) { continuation.resume(returning: $0) }
+    }
+    watch.cancel()
+    guard ok else {
+      throw ImportError.failed(catalog.note.isEmpty ? "не скачалась" : catalog.note)
+    }
+    finish(job.id, file: entry.file, note: nil)
+  }
+
+  /// A whole checkpoint converted into the engine's format.
+  private func convertCheckpoint(_ job: ImportJob, report: @escaping ImportRunner.Report) async throws {
+    let writing = ImportRunner.cleanedName(job.source) + "_f16.ckpt"
+    hidden.insert(writing)
+    defer { hidden.remove(writing) }
+    // the half-written file stays out of the list only until the engine comes back with it
+    let base = engineHooks()
+    let hooks = EngineHooks(
+      pause: base.pause,
+      resume: { [weak self] made, replacing in
+        self?.hidden.remove(writing)
+        self?.rescan()
+        await base.resume(made, replacing)
+      },
+      waitIdle: base.waitIdle)
+    let result = try await ImportRunner.importCheckpoint(
+      job.source, engineTag: engineTag(), engine: hooks, cancel: job.cancel, plan: importPlan,
+      report: report)
+    finish(job.id, file: result.file, note: result.note)
   }
 
   private func advance(_ id: UUID, _ stage: JobStage, _ progress: Double) {
@@ -719,7 +717,7 @@ final class ModelLibrary: ObservableObject {
   /// away the memory goes too.
   private func rememberCancelled(_ job: ImportJob) {
     guard isLooseFile(job), let stamp = Self.stamp(of: job.source) else { return }
-    cancelled[job.source.path] = stamp
+    folderWatch.cancelled[job.source.path] = stamp
   }
 
   /// A file someone put into the models folder, as opposed to a model the library made or
