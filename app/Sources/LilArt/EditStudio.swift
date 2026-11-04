@@ -404,25 +404,15 @@ extension Studio {
       status = "размер картинки не прочитался"
       return
     }
-    let ratio = Double(pw) / Double(ph)
     let (bw, bh) = megapixels.size(for: aspect)
-    let area = Double(bw * bh)
-    var best: (w: Int, h: Int, score: Double)?
-    for w in stride(from: 256, through: 4096, by: 64) {
-      let h = min(4096, max(256, Int((Double(w) / ratio / 64).rounded()) * 64))
-      // the shape matters most; the pixel count may drift a little to keep it
-      let shapeError = abs(log((Double(w) / Double(h)) / ratio))
-      let areaError = abs(log(Double(w * h) / area))
-      let score = shapeError * 4 + areaError
-      if score < best?.score ?? .infinity { best = (w, h, score) }
-    }
+    let best = SizeFit.best(ratio: Double(pw) / Double(ph), area: Double(bw * bh), maxSide: 4096)
     guard let best else { return }
     if !pro { pro = true }  // exact sizes live in PRO; switching first keeps them
-    proWidth = best.w
-    proHeight = best.h
-    widthText = String(best.w)
-    heightText = String(best.h)
-    status = "размер \(best.w)×\(best.h) — по картинке \(pw)×\(ph)"
+    proWidth = best.width
+    proHeight = best.height
+    widthText = String(best.width)
+    heightText = String(best.height)
+    status = "размер \(best.width)×\(best.height) — по картинке \(pw)×\(ph)"
   }
 
   // MARK: the models folder itself

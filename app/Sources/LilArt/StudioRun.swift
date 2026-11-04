@@ -57,7 +57,7 @@ extension Studio {
   }
 
 
-  static func randomSeed() -> UInt32 { UInt32.random(in: 0...UInt32(Int32.max)) }
+  static func randomSeed() -> UInt32 { SeedPlan.random() }
 
   func enqueue() {
     guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -121,13 +121,11 @@ extension Studio {
       upscaleFactor: upscale?.factor ?? 0, parts: partsInUse(for: modelEntry),
       tweaks: tweaksInUse(for: modelEntry, masked: false), regions: regionsInUse(edit: false))
     let name = models.first(where: { $0.file == model })?.name ?? model
-    let first = seedLocked ? lockedSeed : Self.randomSeed()
-    return (0..<max(1, batch)).map { index in
+    // a locked seed with a batch of four still gives four different pictures (`SeedPlan`)
+    let seeds = SeedPlan.seeds(count: batch, locked: seedLocked, lockedSeed: lockedSeed)
+    return seeds.map { seed in
       var request = base
-      // A locked seed with a batch of four still gives four different pictures, each one
-      // stepping the seed on by one, so the whole batch can be made again exactly.
-      request.seed =
-        seedLocked ? first &+ UInt32(index) : (index == 0 ? first : Self.randomSeed())
+      request.seed = seed
       return ImageJob(
         request: request, suffix: presetSuffix, modelName: name,
         exactSteps: pro ? proSteps : nil, quality: quality, savedSteps: savedForModel?.steps)
@@ -162,11 +160,10 @@ extension Studio {
       tweaks: tweaksInUse(for: modelEntry, masked: masked), controls: controls,
       regions: regionsInUse(edit: true), regionsEdit: true)
     let name = modelEntry?.name ?? model
-    let first = seedLocked ? lockedSeed : Self.randomSeed()
-    return (0..<max(1, batch)).map { index in
+    let seeds = SeedPlan.seeds(count: batch, locked: seedLocked, lockedSeed: lockedSeed)
+    return seeds.map { seed in
       var request = base
-      request.seed =
-        seedLocked ? first &+ UInt32(index) : (index == 0 ? first : Self.randomSeed())
+      request.seed = seed
       return ImageJob(
         request: request, suffix: presetSuffix, modelName: name,
         exactSteps: pro ? proSteps : nil, quality: quality, savedSteps: savedForModel?.steps,
@@ -213,7 +210,7 @@ extension Studio {
     let request = VideoRequest(
       model: videoModel, prompt: prompt, negative: videoNegativeOn ? videoNegative : "",
       width: size.width, height: size.height, frames: videoFrames, steps: videoSteps,
-      seed: seedLocked ? lockedSeed : Self.randomSeed(), cfg: videoCFG, sampler: videoSampler,
+      seed: SeedPlan.single(locked: seedLocked, lockedSeed: lockedSeed), cfg: videoCFG, sampler: videoSampler,
       shift: videoShift, inputs: inputs, parts: partsInUse(for: videoEntry),
       tweaks: tweaksInUse(for: videoEntry, masked: false), refiner: videoRefinerInUse?.file,
       refinerStart: Float(videoRefinerStart),

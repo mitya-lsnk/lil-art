@@ -81,17 +81,11 @@ extension Studio {
       let ph = props[kCGImagePropertyPixelHeight] as? Int, pw > 0, ph > 0
     else { return }
     let base = videoSizes[min(max(0, videoSizeIndex), videoSizes.count - 1)]
-    let area = Double(base.width * base.height)
-    let ratio = Double(pw) / Double(ph)
-    var best: (w: Int, h: Int, score: Double)?
-    for w in stride(from: 256, through: 2048, by: 64) {
-      let h = min(2048, max(256, Int((Double(w) / ratio / 64).rounded()) * 64))
-      let score = abs(log((Double(w) / Double(h)) / ratio)) * 4 + abs(log(Double(w * h) / area))
-      if score < best?.score ?? .infinity { best = (w, h, score) }
-    }
+    let best = SizeFit.best(
+      ratio: Double(pw) / Double(ph), area: Double(base.width * base.height), maxSide: 2048)
     guard let best else { return }
-    setVideoCustomSize(width: best.w, height: best.h)
-    status = "размер \(best.w)×\(best.h) — по первому кадру \(pw)×\(ph)"
+    setVideoCustomSize(width: best.width, height: best.height)
+    status = "размер \(best.width)×\(best.height) — по первому кадру \(pw)×\(ph)"
   }
 
   var videoFrames: Int {
