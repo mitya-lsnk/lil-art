@@ -1005,25 +1005,7 @@ final class Studio: ObservableObject {
       translator.abandonPending("переводчик не ответил за 15 секунд")
       return text
     }
-    return Self.pictureNumbers(out)
-  }
-
-  /// Editing models tell their input pictures apart as "image 1", "image 2"… The translator
-  /// renders «картинка 2» as "picture 2", "photo 2" or "pic 2"; all of them become the one
-  /// wording the model was taught.
-  static func pictureNumbers(_ text: String) -> String {
-    var out = text
-    let rules = [
-      (#"\b(?:pictures|photos|photographs|pics|images|illustrations|drawings)\s+(?=[1-9]\b)"#, "images "),
-      (#"\b(?:picture|photo|photograph|pic|img|image|illustration|drawing)\s*(?:no\.?\s*|#\s*)?(?=[1-9]\b)"#, "image "),
-    ]
-    for (pattern, replacement) in rules {
-      guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
-      else { continue }
-      out = regex.stringByReplacingMatches(
-        in: out, range: NSRange(out.startIndex..., in: out), withTemplate: replacement)
-    }
-    return out
+    return TextRules.pictureNumbers(out)
   }
 
   /// What the model should read for `text`: the English made from exactly this text with the
