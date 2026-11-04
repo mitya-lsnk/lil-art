@@ -48,7 +48,7 @@ extension Studio {
 
   nonisolated static let stillCount = 12
 
-  private func addStill(_ url: URL) {
+  func addStill(_ url: URL) {
     guard let thumb = Thumbnail.make(url, maxPixel: 256) else { return }
     recentStills.removeAll { $0.url == url }
     recentStills.insert(Still(url: url, thumb: thumb), at: 0)

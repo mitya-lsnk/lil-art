@@ -19,7 +19,7 @@ extension Studio {
 
   /// The box stays on whichever side the person is looking at. Flipping it to the English
   /// on every translation (each run makes one) took the Russian away mid-typing.
-  private func store(english out: String, from text: String) {
+  func store(english out: String, from text: String) {
     englishPrompt = out == text ? "" : out
     englishSource = text
   }

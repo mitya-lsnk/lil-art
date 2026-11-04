@@ -73,7 +73,7 @@ extension Studio {
 
   /// An edit keeps the picture's shape unless told otherwise; a portrait squeezed into a
   /// square comes back with its subject cropped.
-  private func matchAspect(to image: NSImage) {
+  func matchAspect(to image: NSImage) {
     guard let rep = image.representations.first, rep.pixelsHigh > 0 else { return }
     let ratio = Double(rep.pixelsWide) / Double(rep.pixelsHigh)
     guard let best = Aspect.allCases.min(by: { abs($0.ratio - ratio) < abs($1.ratio - ratio) })
