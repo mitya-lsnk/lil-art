@@ -69,8 +69,6 @@ extension Studio {
 
   // MARK: upscaler
 
-  // MARK: upscaler
-
   var upscalerReady: Bool { library.installed.contains { $0.file == upscaler } }
   var upscaleJob: ImportJob? { library.jobs.first { $0.source.lastPathComponent == upscaler } }
 

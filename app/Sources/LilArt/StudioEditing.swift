@@ -72,20 +72,22 @@ extension Studio {
   func removeEditRef(_ ref: Reference) { editRefs.removeAll { $0.id == ref.id } }
 
   /// An edit keeps the picture's shape unless told otherwise; a portrait squeezed into a
-  /// square comes back with its subject cropped.
+  /// square comes back with its subject cropped. In PRO the size follows the picture's own
+  /// shape exactly (896×1152 stays 896×1152): snapping it to the nearest preset (832×1216)
+  /// squeezed the picture by a tenth before the model ever saw it.
   func matchAspect(to image: NSImage) {
     guard let rep = image.representations.first, rep.pixelsHigh > 0 else { return }
     let ratio = Double(rep.pixelsWide) / Double(rep.pixelsHigh)
     guard let best = Aspect.allCases.min(by: { abs($0.ratio - ratio) < abs($1.ratio - ratio) })
     else { return }
     aspect = best
-    if pro {
-      let (w, h) = megapixels.size(for: best)
-      proWidth = w
-      proHeight = h
-      widthText = String(w)
-      heightText = String(h)
-    }
+    guard pro else { return }
+    let (bw, bh) = megapixels.size(for: best)
+    let (w, h) = SizeFit.best(ratio: ratio, area: Double(bw * bh), maxSide: 4096) ?? (bw, bh)
+    proWidth = w
+    proHeight = h
+    widthText = String(w)
+    heightText = String(h)
   }
 
 
