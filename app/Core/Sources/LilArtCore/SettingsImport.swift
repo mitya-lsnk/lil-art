@@ -88,33 +88,37 @@ enum SettingsImport {
       if type == "IEND" { break }
       if let zero = body.firstIndex(of: 0) {
         let key = String(bytes: body[0..<zero], encoding: .isoLatin1) ?? ""
-        switch type {
-        case "tEXt":
-          // the format says Latin-1, but plenty of tools put UTF-8 there
-          let text = Array(body[(zero + 1)...])
-          out[key] = String(bytes: text, encoding: .utf8) ?? String(bytes: text, encoding: .isoLatin1)
-        case "zTXt":
-          if zero + 2 <= body.count, let text = inflate(Array(body[(zero + 2)...])) {
-            out[key] = String(data: text, encoding: .isoLatin1)
-          }
-        case "iTXt":
-          // keyword \0 flag method language \0 translated \0 text
-          guard zero + 3 <= body.count else { break }
-          let compressed = body[zero + 1] == 1
-          var rest = Array(body[(zero + 3)...])
-          guard let l = rest.firstIndex(of: 0) else { break }
-          rest = Array(rest[(l + 1)...])
-          guard let t = rest.firstIndex(of: 0) else { break }
-          let raw = Array(rest[(t + 1)...])
-          let text = compressed ? inflate(raw) : Data(raw)
-          out[key] = text.flatMap { String(data: $0, encoding: .utf8) }
-        default:
-          break
-        }
+        if let text = pngText(type: type, body: body, keywordEnd: zero) { out[key] = text }
       }
       offset = end + 4
     }
     return out
+  }
+
+  /// The text of one tEXt, zTXt or iTXt chunk whose keyword ends at `keywordEnd`.
+  private static func pngText(type: String, body: [UInt8], keywordEnd zero: Int) -> String? {
+    switch type {
+    case "tEXt":
+      // the format says Latin-1, but plenty of tools put UTF-8 there
+      let text = Array(body[(zero + 1)...])
+      return String(bytes: text, encoding: .utf8) ?? String(bytes: text, encoding: .isoLatin1)
+    case "zTXt":
+      guard zero + 2 <= body.count, let text = inflate(Array(body[(zero + 2)...])) else { return nil }
+      return String(data: text, encoding: .isoLatin1)
+    case "iTXt":
+      // keyword \0 flag method language \0 translated \0 text
+      guard zero + 3 <= body.count else { return nil }
+      let compressed = body[zero + 1] == 1
+      var rest = Array(body[(zero + 3)...])
+      guard let l = rest.firstIndex(of: 0) else { return nil }
+      rest = Array(rest[(l + 1)...])
+      guard let t = rest.firstIndex(of: 0) else { return nil }
+      let raw = Array(rest[(t + 1)...])
+      let text = compressed ? inflate(raw) : Data(raw)
+      return text.flatMap { String(data: $0, encoding: .utf8) }
+    default:
+      return nil
+    }
   }
 
   /// zlib data (two header bytes, deflate, checksum) to plain bytes.
@@ -305,7 +309,11 @@ enum SettingsImport {
       .init(name: "query", value: query), .init(name: "limit", value: "12"),
       .init(name: "types", value: "Checkpoint"),
     ]
-    let json = try await fetchJSON(components.url!)
+    return models(from: try await fetchJSON(components.url!))
+  }
+
+  /// The models of a search answer, with their versions.
+  static func models(from json: [String: Any]) -> [CivitaiModel] {
     let items = (json["items"] as? [[String: Any]]) ?? []
     return items.compactMap { item in
       guard let id = item["id"] as? Int, let name = item["name"] as? String else { return nil }
@@ -327,7 +335,11 @@ enum SettingsImport {
       // without it the API leaves out every picture's settings
       .init(name: "withMeta", value: "true"),
     ]
-    let json = try await fetchJSON(components.url!)
+    return stats(from: try await fetchJSON(components.url!))
+  }
+
+  /// What the pictures posted for a model version say, counted.
+  static func stats(from json: [String: Any]) -> CivitaiStats {
     let items = (json["items"] as? [[String: Any]]) ?? []
     var stats = CivitaiStats()
     var samplers: [String: Int] = [:]
@@ -366,7 +378,10 @@ enum SettingsImport {
     components.queryItems = [
       .init(name: "imageId", value: String(id)), .init(name: "withMeta", value: "true"),
     ]
-    let json = try await fetchJSON(components.url!)
+    return image(from: try await fetchJSON(components.url!))
+  }
+
+  static func image(from json: [String: Any]) -> FoundSettings? {
     guard let item = (json["items"] as? [[String: Any]])?.first, let meta = civitaiMeta(item)
     else { return nil }
     return fromCivitaiMeta(meta)

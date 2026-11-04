@@ -110,7 +110,41 @@ enum ScaledCheckpoint {
     let reader = try FileHandle(forReadingFrom: input)
     defer { try? reader.close() }
 
-    // Only the plain per-layer formats are handled; anything else is refused, never guessed.
+    try refuseOtherFormats(header, reader)
+    let (plans, layout, size) = try plan(header, reader)
+    try requireSpace(for: size, beside: output)
+
+    FileManager.default.createFile(atPath: output.path, contents: nil)
+    let writer = try FileHandle(forWritingTo: output)
+    defer { try? writer.close() }
+    try writeHeader(layout, to: writer)
+
+    let totalBytes = max(1, plans.reduce(0) { $0 + ($1.entry.end - $1.entry.start) })
+    var doneBytes = 0
+    for plan in plans {
+      if shouldStop() { throw CancellationError() }
+      try reader.seek(toOffset: UInt64(header.dataStart + plan.entry.start))
+      let step: (Int) -> Void = { n in
+        doneBytes += n
+        progress(Double(doneBytes) / Double(totalBytes))
+      }
+      if let scale = plan.scale {
+        try widen(plan, scale: scale, from: reader, to: writer, step: step)
+      } else {
+        try copyThrough(plan.entry.end - plan.entry.start, from: reader, to: writer, step: step)
+      }
+    }
+  }
+
+  /// One tensor of the new file: where it comes from and the multipliers to apply (nil: copy as is).
+  private struct Plan {
+    let key: String
+    let entry: Entry
+    let scale: [Float]?
+  }
+
+  /// Only the plain per-layer formats are handled; anything else is refused, never guessed.
+  private static func refuseOtherFormats(_ header: Header, _ reader: FileHandle) throws {
     for (key, entry) in header.entries where key.hasSuffix(".comfy_quant") {
       // a note is a few bytes of JSON; a large one is not a note
       guard entry.end - entry.start <= 1_000_000 else { throw Failure.unreadable }
@@ -123,34 +157,25 @@ enum ScaledCheckpoint {
         throw Failure.unsupported(format)
       }
     }
+  }
 
-    struct Plan {
-      let key: String
-      let entry: Entry
-      let scale: [Float]?
-    }
+  /// The tensors that stay, in order, the header of the file that will be written, and its data size.
+  private static func plan(_ header: Header, _ reader: FileHandle) throws -> ([Plan], [String: Any], Int) {
     var plans: [Plan] = []
     var layout: [String: Any] = [:]
     if let metadata = header.metadata { layout["__metadata__"] = metadata }
     var offset = 0
     for key in header.entries.keys.sorted() where !isDropped(key) {
       guard let entry = header.entries[key] else { continue }
-      let count = entry.count
       let base = key.hasSuffix(".weight") ? String(key.dropLast(".weight".count)) : key
       let scaleEntry = header.entries[base + ".weight_scale"]
-      let converts =
-        entry.dtype.hasPrefix("F8_") || (entry.dtype == "I8" && scaleEntry != nil)
+      let converts = entry.dtype.hasPrefix("F8_") || (entry.dtype == "I8" && scaleEntry != nil)
       var scale: [Float]?
       var bytes = entry.end - entry.start
       var dtype = entry.dtype
       if converts {
-        let values = try scaleEntry.map { try readScale(reader, header, $0) } ?? [1]
-        let rows = max(1, entry.shape.first ?? 1)
-        guard values.count == 1 || values.count == rows else {
-          throw Failure.unsupported("множители по блокам в \(key)")
-        }
-        scale = values
-        bytes = count * 2
+        scale = try multipliers(for: key, entry, scaleEntry, header, reader)
+        bytes = entry.count * 2
         dtype = "F16"
       }
       let (next, overflow) = offset.addingReportingOverflow(bytes)
@@ -160,75 +185,83 @@ enum ScaledCheckpoint {
       offset = next
     }
     guard offset < (Int.max - 2_000_000_000) / 2 else { throw Failure.unreadable }
+    return (plans, layout, offset)
+  }
 
+  /// One multiplier for the whole layer or one per row; anything else is refused.
+  private static func multipliers(
+    for key: String, _ entry: Entry, _ scaleEntry: Entry?, _ header: Header, _ reader: FileHandle
+  ) throws -> [Float] {
+    let values = try scaleEntry.map { try readScale(reader, header, $0) } ?? [1]
+    let rows = max(1, entry.shape.first ?? 1)
+    guard values.count == 1 || values.count == rows else {
+      throw Failure.unsupported("множители по блокам в \(key)")
+    }
+    return values
+  }
+
+  private static func requireSpace(for size: Int, beside output: URL) throws {
     let free =
       (try? output.deletingLastPathComponent().resourceValues(
         forKeys: [.volumeAvailableCapacityForImportantUsageKey]))?
       .volumeAvailableCapacityForImportantUsage ?? Int64.max
     // the rewritten file, plus the engine's own copy the importer writes next
-    let needed = Int64(offset) * 2 + 2_000_000_000
+    let needed = Int64(size) * 2 + 2_000_000_000
     guard free > needed else { throw Failure.noSpace(Double(needed) / 1_073_741_824) }
+  }
 
+  private static func writeHeader(_ layout: [String: Any], to writer: FileHandle) throws {
     var headerData = try JSONSerialization.data(withJSONObject: layout)
     while headerData.count % 8 != 0 { headerData.append(0x20) }
-    FileManager.default.createFile(atPath: output.path, contents: nil)
-    let writer = try FileHandle(forWritingTo: output)
-    defer { try? writer.close() }
     var length = UInt64(headerData.count).littleEndian
     try writer.write(contentsOf: Data(bytes: &length, count: 8))
     try writer.write(contentsOf: headerData)
+  }
 
-    let totalBytes = max(1, plans.reduce(0) { $0 + ($1.entry.end - $1.entry.start) })
-    var doneBytes = 0
-    let chunk = 1 << 24
-    for plan in plans {
-      if shouldStop() { throw CancellationError() }
-      try reader.seek(toOffset: UInt64(header.dataStart + plan.entry.start))
-      let size = plan.entry.end - plan.entry.start
-      if let scale = plan.scale {
-        let table = decodeTable(plan.entry.dtype)
-        let count = plan.entry.count
-        let rows = max(1, plan.entry.shape.first ?? 1)
-        let perRow = max(1, count / rows)
-        var done = 0
-        while done < count {
-          let n = min(chunk, count - done)
-          guard let source = try reader.read(upToCount: n), source.count == n else {
-            throw Failure.unreadable
+  private static let chunk = 1 << 24
+
+  /// An 8-bit tensor written as 16-bit numbers with its multipliers applied.
+  private static func widen(
+    _ plan: Plan, scale: [Float], from reader: FileHandle, to writer: FileHandle, step: (Int) -> Void
+  ) throws {
+    let table = decodeTable(plan.entry.dtype)
+    let count = plan.entry.count
+    let perRow = max(1, count / max(1, plan.entry.shape.first ?? 1))
+    var done = 0
+    while done < count {
+      let n = min(chunk, count - done)
+      guard let source = try reader.read(upToCount: n), source.count == n else {
+        throw Failure.unreadable
+      }
+      var converted = Data(count: n * 2)
+      source.withUnsafeBytes { raw in
+        converted.withUnsafeMutableBytes { out in
+          let bytes = raw.bindMemory(to: UInt8.self)
+          let values = out.bindMemory(to: Float16.self)
+          for i in 0..<n {
+            let multiplier = scale.count == 1 ? scale[0] : scale[(done + i) / perRow]
+            values[i] = Float16(table[Int(bytes[i])] * multiplier)
           }
-          var converted = Data(count: n * 2)
-          source.withUnsafeBytes { raw in
-            converted.withUnsafeMutableBytes { out in
-              let bytes = raw.bindMemory(to: UInt8.self)
-              let values = out.bindMemory(to: Float16.self)
-              if scale.count == 1 {
-                let multiplier = scale[0]
-                for i in 0..<n { values[i] = Float16(table[Int(bytes[i])] * multiplier) }
-              } else {
-                for i in 0..<n {
-                  values[i] = Float16(table[Int(bytes[i])] * scale[(done + i) / perRow])
-                }
-              }
-            }
-          }
-          try writer.write(contentsOf: converted)
-          done += n
-          doneBytes += n
-          progress(Double(doneBytes) / Double(totalBytes))
-        }
-      } else {
-        var left = size
-        while left > 0 {
-          let n = min(chunk, left)
-          guard let data = try reader.read(upToCount: n), data.count == n else {
-            throw Failure.unreadable
-          }
-          try writer.write(contentsOf: data)
-          left -= n
-          doneBytes += n
-          progress(Double(doneBytes) / Double(totalBytes))
         }
       }
+      try writer.write(contentsOf: converted)
+      done += n
+      step(n)
+    }
+  }
+
+  private static func copyThrough(
+    _ size: Int, from reader: FileHandle, to writer: FileHandle, step: (Int) -> Void
+  ) throws {
+    var left = size
+    while left > 0 {
+      let n = min(chunk, left)
+      guard let data = try reader.read(upToCount: n), data.count == n else {
+        throw Failure.unreadable
+      }
+      try writer.write(contentsOf: data)
+      left -= n
+      step(n)
     }
   }
 
