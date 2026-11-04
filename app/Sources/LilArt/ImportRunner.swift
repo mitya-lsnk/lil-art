@@ -94,14 +94,6 @@ struct EngineHooks {
   let waitIdle: () async -> Void
 }
 
-enum ImportError: Error {
-  case failed(String)
-  case http(Int)
-  case noRelease
-  case crashed(String)
-  case exited(String)
-}
-
 /// The conversion steps themselves, with no interface of their own: they report a stage and
 /// a fraction, and the model library shows it.
 ///
@@ -146,22 +138,11 @@ enum ImportRunner {
     do {
       try await ensureTool(tag: engineTag, report: report)
       try cancel.check()
-
       var importSource = source
       if ScaledCheckpoint.needsDequantizing(source) {
-        // only the disk is needed here, so the engine keeps running
-        report(.unpacking, 0)
-        let folder = importCache
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let out = folder.appendingPathComponent(source.lastPathComponent)
+        let out = importCache.appendingPathComponent(source.lastPathComponent)
         unpacked = out
-        let progress: @Sendable (Double) -> Void = { fraction in
-          Task { @MainActor in report(.unpacking, fraction) }
-        }
-        try await Task.detached(priority: .userInitiated) {
-          try ScaledCheckpoint.dequantize(
-            source, to: out, progress: progress, shouldStop: { cancel.isStopped })
-        }.value
+        try await unpack(source, to: out, cancel: cancel, report: report)
         importSource = out
       }
       try cancel.check()
@@ -170,11 +151,7 @@ enum ImportRunner {
       await engine.pause()
       paused = true
       if existedBefore {
-        // a copy left by an earlier crash is moved to the Trash rather than overwritten
-        if fm.fileExists(atPath: previous.path) {
-          try fm.trashItem(at: previous, resultingItemURL: nil)
-        }
-        try fm.moveItem(at: target, to: previous)
+        try setAsideCopy(target, as: previous)
         setAside = true
       }
       let log = try await runImport(importSource, cancel: cancel, report: report)
@@ -200,59 +177,90 @@ enum ImportRunner {
       await engine.resume(file, nil)
       paused = false
 
-      var note: String?
-      let warning = log.warning.trimmingCharacters(in: .whitespacesAndNewlines)
-      if !warning.isEmpty {
-        let detail = warning.split(whereSeparator: \.isNewline).prefix(2).joined(separator: "; ")
-        note =
-          "не докачались нужные модели файлы, без интернета она может не запуститься ("
-          + String(detail.prefix(240)) + ")"
-      }
-      // The importer leaves Wan's picture-to-video models marked text-to-video ("none"); their
-      // 36 input channels (noise, mask, picture) say otherwise, and without the mark the
-      // engine ignores the first frame.
-      if let entry = CustomModels.entries(in: modelsDir)[file], entry.version.hasPrefix("wan"),
-        entry.modifier.isEmpty || entry.modifier == "none", wanInputChannels(source) == 36
-      {
-        try? CustomModels.setValue("inpainting", for: "modifier", of: file, in: modelsDir)
-      }
-      // An 8-bit download leaves the importer at 16 bits, twice its size: it goes back to 8.
-      // A plan chosen in the models window squeezes every import, whatever it came as.
-      let squeeze = plan ?? (Double(importedBytes) > Double(bytes(source)) * 1.5 ? .eightBit : nil)
-      if let squeeze, let version = CustomModels.entries(in: modelsDir)[file]?.version,
-        WeightCompressor.canCompress(version)
-      {
-        do {
-          let smaller = try await compress(
-            file, version: version, plan: squeeze, engine: engine, cancel: cancel, report: report)
-          return (smaller, note)
-        } catch is CancellationError {
-          return (file, joined(note, "сжатие отменено, модель осталась 16-битной"))
-        } catch {
-          return (
-            file,
-            joined(note, "сжать не вышло, модель осталась 16-битной: " + explain(error))
-          )
-        }
-      }
-      return (file, note)
+      markPictureModel(file, source: source)
+      return try await squeezeAfterImport(
+        file, note: ImportRules.warningNote(log.warning),
+        plan: plan ?? (ImportRules.cameOutWiderThanItWent(importedBytes: importedBytes, sourceBytes: bytes(source)) ? .eightBit : nil),
+        engine: engine, cancel: cancel, report: report)
     } catch {
       if imported == nil {
-        if setAside {
-          // whatever sits at the target now was written by this run; the old copy comes back
-          removePartial(target)
-          try? fm.moveItem(at: previous, to: target)
-        } else if !existedBefore {
-          removeLeftovers(target, since: started)
-          // the importer records the model before it is checked, so the entry goes too
-          if !fm.fileExists(atPath: target.path) {
-            CustomModels.remove(target.lastPathComponent, in: modelsDir)
-          }
-        }
+        undoFailedImport(target, previous: previous, setAside: setAside, existedBefore: existedBefore, since: started)
       }
       if paused { await engine.resume(nil, nil) }
       if cancel.isStopped { throw CancellationError() }
       throw error
+    }
+  }
+
+  /// A failed import leaves the folder as it found it (`ImportRules.rollback` says how).
+  private static func undoFailedImport(
+    _ target: URL, previous: URL, setAside: Bool, existedBefore: Bool, since started: Date
+  ) {
+    let fm = FileManager.default
+    switch ImportRules.rollback(imported: false, setAside: setAside, existedBefore: existedBefore) {
+    case .putOldCopyBack:
+      // whatever sits at the target now was written by this run; the old copy comes back
+      removePartial(target)
+      try? fm.moveItem(at: previous, to: target)
+    case .removeWhatThisRunWrote:
+      removeLeftovers(target, since: started)
+      // the importer records the model before it is checked, so the entry goes too
+      if !fm.fileExists(atPath: target.path) {
+        CustomModels.remove(target.lastPathComponent, in: modelsDir)
+      }
+    case .keepEverything, .leaveAlone:
+      break
+    }
+  }
+
+  /// A scaled fp8 file rewritten as plain 16-bit weights the importer understands. Only the disk
+  /// is needed here, so the engine keeps running.
+  private static func unpack(
+    _ source: URL, to out: URL, cancel: CancelFlag, report: @escaping Report
+  ) async throws {
+    report(.unpacking, 0)
+    try FileManager.default.createDirectory(at: importCache, withIntermediateDirectories: true)
+    let progress: @Sendable (Double) -> Void = { fraction in
+      Task { @MainActor in report(.unpacking, fraction) }
+    }
+    try await Task.detached(priority: .userInitiated) {
+      try ScaledCheckpoint.dequantize(source, to: out, progress: progress, shouldStop: { cancel.isStopped })
+    }.value
+  }
+
+  /// A copy left by an earlier crash is moved to the Trash rather than overwritten.
+  private static func setAsideCopy(_ target: URL, as previous: URL) throws {
+    let fm = FileManager.default
+    if fm.fileExists(atPath: previous.path) { try fm.trashItem(at: previous, resultingItemURL: nil) }
+    try fm.moveItem(at: target, to: previous)
+  }
+
+  /// The importer leaves Wan's picture-to-video models marked text-to-video; the mark is put back.
+  private static func markPictureModel(_ file: String, source: URL) {
+    guard let entry = CustomModels.entries(in: modelsDir)[file],
+      ImportRules.needsPictureMark(
+        version: entry.version, modifier: entry.modifier, channels: wanInputChannels(source))
+    else { return }
+    try? CustomModels.setValue("inpainting", for: "modifier", of: file, in: modelsDir)
+  }
+
+  /// An 8-bit download leaves the importer at 16 bits, twice its size: it goes back to 8. A plan
+  /// chosen in the models window squeezes every import, whatever it came as.
+  private static func squeezeAfterImport(
+    _ file: String, note: String?, plan squeeze: CompressionPlan?, engine: EngineHooks,
+    cancel: CancelFlag, report: @escaping Report
+  ) async throws -> (file: String, note: String?) {
+    guard let squeeze, let version = CustomModels.entries(in: modelsDir)[file]?.version,
+      WeightCompressor.canCompress(version)
+    else { return (file, note) }
+    do {
+      let smaller = try await compress(
+        file, version: version, plan: squeeze, engine: engine, cancel: cancel, report: report)
+      return (smaller, note)
+    } catch is CancellationError {
+      return (file, ImportRules.joined(note, "сжатие отменено, модель осталась 16-битной"))
+    } catch {
+      return (file, ImportRules.joined(note, "сжать не вышло, модель осталась 16-битной: " + explain(error)))
     }
   }
 
@@ -283,8 +291,8 @@ enum ImportRunner {
       }.value
       // Every tensor was written by now (the compressor refuses otherwise); a result far below
       // what the plan should give still means something was cut short.
-      let floor = Int64(Double(inputBytes) * Double(max(3, plan.bits)) / 16 * 0.5)
-      guard bytes(partial) > max(10_000_000, floor) else {
+      let floor = ImportRules.smallestPlausibleBytes(inputBytes: inputBytes, bits: plan.bits)
+      guard bytes(partial) > floor else {
         throw WeightCompressor.Failure.empty
       }
     } catch {
@@ -692,7 +700,7 @@ enum ImportRunner {
   }
 
   private nonisolated static func joined(_ note: String?, _ more: String) -> String {
-    note.map { $0 + "; " + more } ?? more
+    ImportRules.joined(note, more)
   }
 
   static var importCache: URL {
@@ -783,40 +791,12 @@ enum ImportRunner {
   // MARK: what went wrong, in words
 
   nonisolated static func explain(_ error: Error) -> String {
+    ErrorWords.explain(error) ?? explainNative(error) ?? ErrorWords.fallback(error)
+  }
+
+  /// The failures of the parts and of the compressor, which need the engine's tensor library.
+  private nonisolated static func explainNative(_ error: Error) -> String? {
     switch error {
-    case is CancellationError:
-      return "отменено"
-    case ImportError.failed(let reason):
-      return reason
-    case ImportError.http(let code):
-      return "конвертер не скачался, GitHub ответил \(code)"
-    case ImportError.noRelease:
-      return "на GitHub не нашёлся выпуск движка с конвертером"
-    case ImportError.crashed(let text):
-      return "конвертер упал на этом файле: такую модель он пока не умеет" + lastLine(text)
-    case ImportError.exited(let text):
-      let lower = text.lowercased()
-      if lower.contains("no space") { return "на диске не хватило места" }
-      if lower.contains("versiondetection") || lower.contains("tensornotfound")
-        || lower.contains("datanotfound") || lower.contains("unsupported")
-      {
-        return "движок не узнал этот файл: это не целая модель или её семейство ему неизвестно"
-      }
-      return lastLine(text).isEmpty ? "конвертер завершился с ошибкой" : lastLine(text)
-    case ScaledCheckpoint.Failure.unsupported(let what):
-      return "веса ужаты способом, который движок пока не читает: \(what). Нужна версия fp8 или fp16"
-    case ScaledCheckpoint.Failure.unreadable:
-      return "файл не читается, возможно он скачался не до конца"
-    case ScaledCheckpoint.Failure.noSpace(let gigabytes):
-      return String(format: "на диске нужно хотя бы %.0f ГБ свободного места", gigabytes)
-    case ModelMover.Failure.unreachable(let disk):
-      return "диск «\(disk)» не подключён"
-    case ModelMover.Failure.noSpace(let gigabytes):
-      return String(format: "не хватает места: нужно %.0f ГБ", gigabytes)
-    case ModelMover.Failure.mismatch(let file):
-      return "\(file) скопировался не целиком, оригинал не тронут"
-    case ModelMover.Failure.notLinked(let file):
-      return "\(file) и так на Mac"
     case ModelParts.Failure.noStandard:
       return "не нашлось установленной модели, частью которой может быть этот файл: "
         + "сначала нужна сама модель, затем её VAE или кодировщик"
@@ -828,7 +808,7 @@ enum ImportRunner {
     case ModelParts.Failure.incomplete:
       return "часть весов не записалась"
     case ModelParts.Failure.noSpace(let gigabytes):
-      return String(format: "на диске нужно хотя бы %.0f ГБ свободного места", gigabytes)
+      return ErrorWords.noSpace(gigabytes)
     case WeightCompressor.Failure.unsupportedFamily(let family):
       return "модели семейства \(family) сжимать не умею"
     case WeightCompressor.Failure.openFailed:
@@ -838,21 +818,10 @@ enum ImportRunner {
     case WeightCompressor.Failure.incomplete:
       return "часть весов не прочиталась, сжатие остановлено"
     case WeightCompressor.Failure.noSpace(let gigabytes):
-      return String(format: "на диске нужно хотя бы %.0f ГБ свободного места", gigabytes)
+      return ErrorWords.noSpace(gigabytes)
     default:
-      let text = String(describing: error)
-      if text.contains("versionDetectionFailed") || text.contains("modelVersionFailed") {
-        return "не понятно, для какой модели эта LoRA. Выберите модель того же семейства и повторите"
-      }
-      return error.localizedDescription
+      return nil
     }
-  }
-
-  private nonisolated static func lastLine(_ text: String) -> String {
-    let line =
-      text.split(whereSeparator: \.isNewline).last.map(String.init)?
-      .trimmingCharacters(in: .whitespaces) ?? ""
-    return line.isEmpty ? "" : " (\(line))"
   }
 }
 
