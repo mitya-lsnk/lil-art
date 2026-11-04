@@ -14,7 +14,21 @@ struct PromptBox: View {
     VStack(alignment: .leading, spacing: 7) {
       HStack {
         Cap(text: "Prompt")
-        Spacer()
+        // What a run will send, so the person never has to guess. It sits up here, where it
+        // may shrink: in the row of buttons below, a line that did not fit pushed the whole
+        // sidebar wider than the window.
+        Group {
+          if s.translating {
+            Text("перевожу")
+          } else if s.englishCurrent {
+            Text("уйдёт: перевод").foregroundStyle(P.ink)
+          } else if s.englishStale {
+            Text("текст изменён — уйдёт как написано")
+          }
+        }
+        .font(.mono(9)).tracking(0.6).foregroundStyle(P.muted)
+        .lineLimit(1).truncationMode(.tail).minimumScaleFactor(0.8)
+        .frame(maxWidth: .infinity, alignment: .trailing)
         if hasEnglish {
           Segmented(
             options: [(false, "ру"), (true, "en")],
@@ -43,18 +57,6 @@ struct PromptBox: View {
         HStack(spacing: 6) {
           MagicButton(s: s).fixedSize()
           Spacer(minLength: 4)
-          // what a run will send, so the person never has to guess
-          Group {
-            if s.translating {
-              Text("перевожу")
-            } else if s.englishCurrent {
-              Text("уйдёт: перевод").foregroundStyle(P.ink)
-            } else if s.englishStale {
-              Text("текст изменён — уйдёт как написано")
-            }
-          }
-          .font(.mono(9)).tracking(0.6).foregroundStyle(P.muted)
-          .lineLimit(1).fixedSize()
           PresetButton(s: s)
         }
         .padding(.horizontal, 8).padding(.vertical, 7)

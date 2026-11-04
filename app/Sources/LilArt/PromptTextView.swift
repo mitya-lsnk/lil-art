@@ -55,6 +55,12 @@ struct PromptTextView: NSViewRepresentable {
     return scroll
   }
 
+  /// The field takes the width it is offered and the height it is given, whatever the text in
+  /// it measures: a long line must never widen the sidebar it sits in.
+  func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
+    CGSize(width: proposal.width ?? 300, height: proposal.height ?? 104)
+  }
+
   func updateNSView(_ scroll: NSScrollView, context: Context) {
     context.coordinator.parent = self
     guard let view = scroll.documentView as? CompletingTextView else { return }

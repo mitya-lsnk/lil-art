@@ -296,9 +296,22 @@ final class Studio: ObservableObject {
   /// Nothing is ever translated behind the person's back: a run sends this English only while
   /// the Russian it came from is still what is in the box (`modelText`).
   func translate(improve: Bool = false) {
-    let text = prompt
     // the zones' descriptions go with the same button
     translateRegions()
+    switch TranslationTarget.choose(
+      improve: improve, showingEnglish: showingEnglish, english: englishPrompt,
+      englishIsCurrent: englishCurrent, prompt: prompt)
+    {
+    case .nothingToTranslate:
+      status = "английский уже готов: правьте его прямо в поле"
+    case .improveEnglish(let text):
+      improveEnglishSide(text)
+    case .translate(let text):
+      translateRussian(text, improve: improve)
+    }
+  }
+
+  private func translateRussian(_ text: String, improve: Bool) {
     guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
     translationRun += 1
     let run = translationRun
@@ -313,6 +326,22 @@ final class Studio: ObservableObject {
       store(english: out, from: text)
       // asked for, so shown: the English side is editable for a clumsy word
       showingEnglish = !englishPrompt.isEmpty
+    }
+  }
+
+  /// «Улучшить» on the English side: the English on screen, corrections included, gets the detail.
+  private func improveEnglishSide(_ text: String) {
+    let source = prompt
+    translationRun += 1
+    let run = translationRun
+    translating = true
+    Task {
+      let out = await english(for: text, improve: true)
+      guard run == translationRun else { return }
+      translating = false
+      // the Russian it belongs to must still be in the box, and the English not corrected meanwhile
+      guard source == prompt, englishPrompt == text else { return }
+      englishPrompt = out
     }
   }
 
