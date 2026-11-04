@@ -1,0 +1,132 @@
+<div class="win">
+  <div class="reg tl"></div><div class="reg tr"></div><div class="reg bl"></div><div class="reg br"></div>
+  <div class="titlebar">
+    <div class="keys">
+      <div class="key"></div><div class="key"></div><div class="key on"></div>
+    </div>
+    <div class="wordmark">lil <span class="soft">art</span></div>
+    <div class="spacer"></div>
+    <div class="seg">
+      <div class="on">Генерация</div>
+      <div>Лента</div>
+      <div>Модели</div>
+      <div>Пресеты</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="row" style="gap:4px">
+      <div class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="side">
+      <div class="sidescroll">
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div class="cap">Промпт</div>
+          <div class="field" style="height:88px">Чугунный чайник на деревянном столе, утренний свет из окна, пар, мягкие тени</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div class="cap">Исключить</div>
+          <div class="field ph" style="height:44px">размыто, лишние пальцы, водяной знак</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div class="cap">Стиль</div>
+          <div class="chips">
+            <div class="chip on">Фото</div>
+            <div class="chip">Кино</div>
+            <div class="chip">Иллюстрация</div>
+            <div class="chip">Аниме</div>
+          </div>
+        </div>
+        <div class="spacer"></div>
+        <div class="btn primary">Генерировать <span class="kbd">⌘ ↵</span></div>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="stagemain" style="padding:18px">
+        <div class="finder" style="width:100%;max-width:492px;height:328px">
+          <div class="art a1" style="position:absolute;inset:0"></div>
+          <div class="hud">
+            <div class="rec"><span class="dot"></span>FLUX 2 KLEIN</div>
+            <div class="set">1024 &times; 1024</div>
+            <div class="br a"></div><div class="br b"></div><div class="br c"></div><div class="br d"></div>
+            <div class="ts">00:06:41</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="flex-shrink:0;background:var(--panel);border-top:1px solid var(--line)">
+    <div class="hood" style="border-top:none;border-bottom:1px solid var(--line);background:transparent">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"></path></svg>
+      <div class="sum" style="color:var(--ink);font-weight:700;letter-spacing:1.4px;text-transform:uppercase">Под капот</div>
+      <div class="row" style="gap:6px">
+        <div class="chip" style="padding:5px 11px;font-family:var(--mono);font-size:10px;letter-spacing:.6px">Сбросить</div>
+        <div class="chip" style="padding:5px 11px;font-family:var(--mono);font-size:10px;letter-spacing:.6px">Сохранить как пресет</div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:14px;padding:14px 16px 16px">
+
+      <div class="grp">
+        <div class="grph"><div class="cap bare">Модель</div></div>
+        <div class="grpb">
+          <div class="sel"><span>flux 2 klein 4b q8p</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></div>
+          <div class="ctl"><span class="lbl">Уточнитель</span><span class="val" style="color:var(--muted)">нет</span></div>
+          <div class="ctl"><span class="lbl">Файл</span><span class="val" style="color:var(--muted)">4.1 ГБ · на диске</span></div>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grph"><div class="cap bare">Сэмплинг</div></div>
+        <div class="grpb">
+          <div class="sel"><span>Euler A trailing</span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></div>
+          <div>
+            <div class="ctl" style="margin-bottom:7px"><span class="lbl">Шаги</span><span class="val">4</span></div>
+            <div class="track"><div class="fill" style="width:18%"></div><div class="knob" style="left:18%"></div></div>
+          </div>
+          <div>
+            <div class="ctl" style="margin-bottom:7px"><span class="lbl">Сила подсказки</span><span class="val">3.5</span></div>
+            <div class="track"><div class="fill" style="width:34%"></div><div class="knob" style="left:34%"></div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grph"><div class="cap bare">Зерно и размер</div></div>
+        <div class="grpb">
+          <div class="row">
+            <div class="sel" style="flex-grow:1;font-family:var(--mono)">381204977</div>
+            <div class="iconbtn" style="width:32px;height:32px;border:1px solid var(--line);background:var(--panel-2)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"></rect><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"></circle><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"></circle><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"></circle><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"></circle></svg></div>
+            <div class="iconbtn" style="width:32px;height:32px;border:1px solid var(--accent);background:var(--panel-2);color:var(--accent)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></div>
+          </div>
+          <div class="row">
+            <div class="sel" style="flex-grow:1;font-family:var(--mono)">1024</div>
+            <span class="lbl" style="color:var(--muted);font-size:12px">×</span>
+            <div class="sel" style="flex-grow:1;font-family:var(--mono)">1024</div>
+          </div>
+          <div class="ctl"><span class="lbl">Плитками до 4K</span><div class="toggle" style="order:2"></div></div>
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grph"><div class="cap bare">LoRA и исходник</div></div>
+        <div class="grpb">
+          <div>
+            <div class="ctl" style="margin-bottom:7px"><span class="lbl" style="color:var(--ink)">film-grain-v2</span><span class="val">0.65</span></div>
+            <div class="track"><div class="fill" style="width:65%"></div><div class="knob" style="left:65%"></div></div>
+          </div>
+          <div class="row" style="gap:6px">
+            <div class="chip" style="padding:5px 10px;font-size:11px">+ LoRA</div>
+            <div class="chip" style="padding:5px 10px;font-size:11px">+ Картинка</div>
+            <div class="chip" style="padding:5px 10px;font-size:11px">+ Маска</div>
+          </div>
+          <div class="ctl"><span class="lbl">Сила по исходнику</span><span class="val" style="color:var(--muted)">не задан</span></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>

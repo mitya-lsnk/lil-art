@@ -1,0 +1,108 @@
+<div class="win">
+  <div class="reg tl"></div><div class="reg tr"></div><div class="reg bl"></div><div class="reg br"></div>
+  <div class="titlebar">
+    <div class="keys">
+      <div class="key"></div><div class="key"></div><div class="key on"></div>
+    </div>
+    <div class="wordmark">lil <span class="soft">art</span></div>
+    <div class="spacer"></div>
+    <div class="seg">
+      <div class="on">Генерация</div>
+      <div>Лента</div>
+      <div>Модели</div>
+      <div>Пресеты</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="cap">Разбор рецепта</div>
+  </div>
+
+  <div class="body">
+    <div style="width:404px;flex-shrink:0;border-right:1px solid var(--line);padding:16px;display:flex;flex-direction:column;gap:14px">
+      <div class="cap">Источник</div>
+
+      <div style="border:1px dashed var(--line);border-radius:9px;background:var(--panel);padding:14px;display:flex;flex-direction:column;gap:12px;align-items:center">
+        <div class="tile art a5" style="width:100%;height:168px"></div>
+        <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:11px;text-align:center">Бросьте картинку сюда, вставьте ссылку на Civitai<br>или нажмите ⌘V прямо в окне</div>
+      </div>
+
+      <div class="field" style="display:flex;align-items:center;gap:8px;padding:9px 11px;background:var(--panel-2);font-family:var(--mono);font-size:11px;color:var(--muted)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"></path><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"></path></svg>
+        civitai.com/images/48213770
+      </div>
+
+      <div class="grp">
+        <div class="grpb" style="gap:9px">
+          <div class="ctl"><span class="lbl">Формат рецепта</span><span class="val">Automatic1111</span></div>
+          <div class="ctl"><span class="lbl">Найдено полей</span><span class="val">11</span></div>
+          <div class="ctl"><span class="lbl">Автор</span><span class="val" style="color:var(--muted)">не указан</span></div>
+        </div>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:11px;line-height:1.5;color:var(--muted)">Понимает рецепты из Automatic1111, Fooocus, ComfyUI и Draw Things. Ссылка с Civitai тянет настройки по их открытому интерфейсу.</div>
+    </div>
+
+    <div style="flex-grow:1;display:flex;flex-direction:column;min-width:0;background:var(--paper)">
+      <div style="flex-grow:1;padding:16px;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+
+        <div class="row">
+          <div class="cap">Что удалось перенести</div>
+          <div class="spacer"></div>
+          <div class="row" style="gap:14px">
+            <div class="row" style="gap:6px"><div class="led"></div><span class="cap" style="letter-spacing:.5px">8 точно</span></div>
+            <div class="row" style="gap:6px"><div class="led amber"></div><span class="cap" style="letter-spacing:.5px">2 близко</span></div>
+            <div class="row" style="gap:6px"><div class="led hot"></div><span class="cap" style="letter-spacing:.5px">1 нет</span></div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grph"><div class="led"></div><div class="cap">Перенесено как есть</div></div>
+          <div class="grpb" style="gap:10px">
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <span class="lbl" style="font-size:12px;color:var(--muted)">Промпт</span>
+              <span style="font-size:12px;line-height:1.45">cinematic still of a cast iron teapot, morning light, steam, shallow depth of field</span>
+            </div>
+            <div style="height:1px;background:var(--line)"></div>
+            <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:10px">
+              <div class="ctl"><span class="lbl">Шаги</span><span class="val">28</span></div>
+              <div class="ctl"><span class="lbl">Сила</span><span class="val">6.5</span></div>
+              <div class="ctl"><span class="lbl">Зерно</span><span class="val">2977041</span></div>
+              <div class="ctl"><span class="lbl">Размер</span><span class="val">896 × 1152</span></div>
+              <div class="ctl"><span class="lbl">Clip skip</span><span class="val">2</span></div>
+              <div class="ctl"><span class="lbl">Исключить</span><span class="val">есть</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grph"><div class="led amber"></div><div class="cap">Подобрано ближайшее</div></div>
+          <div class="grpb" style="gap:10px">
+            <div class="ctl"><span class="lbl">Сэмплер DPM++ 2M Karras</span><span class="val" style="color:var(--amber)">→ DPM++ 2M Karras</span></div>
+            <div class="ctl"><span class="lbl">Модель juggernautXL_v9</span><span class="val" style="color:var(--amber)">→ sdxl base 1.0</span></div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div class="grph"><div class="led hot"></div><div class="cap">Не хватает на диске</div></div>
+          <div class="grpb" style="gap:11px">
+            <div class="row" style="gap:11px">
+              <div class="tile art a6" style="width:38px;height:38px;border-radius:6px;flex-shrink:0"></div>
+              <div style="flex-grow:1;min-width:0">
+                <div style="font-size:12px;font-weight:600">detail-tweaker-xl</div>
+                <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:11px;margin-top:3px">LoRA, вес 0.8 · 220 МБ · есть на Civitai</div>
+              </div>
+              <div class="ghost" style="height:30px;border-color:var(--line);color:var(--ink)">Скачать</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+
+        <div class="row" style="gap:10px">
+          <div class="btn primary" style="flex-grow:1;height:44px">Применить рецепт</div>
+          <div class="btn" style="width:186px">Сохранить как пресет</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,96 @@
+<div class="win">
+  <div class="reg tl"></div><div class="reg tr"></div><div class="reg bl"></div><div class="reg br"></div>
+  <div class="titlebar">
+    <div class="keys">
+      <div class="key"></div><div class="key"></div><div class="key on"></div>
+    </div>
+    <div class="wordmark">lil <span class="soft">art</span></div>
+    <div class="spacer"></div>
+    <div class="seg">
+      <div>Генерация</div>
+      <div class="on">Лента</div>
+      <div>Модели</div>
+      <div>Пресеты</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="row" style="gap:4px">
+      <div class="iconbtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1A1.7 1.7 0 0 0 8.9 19a1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 5 8.9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3h.1a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9v.1a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div style="flex-grow:1;display:flex;flex-direction:column;min-width:0">
+      <div style="flex-shrink:0;display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel)">
+        <div class="field" style="flex-grow:1;display:flex;align-items:center;gap:8px;padding:8px 11px;color:var(--muted);background:var(--panel-2)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          Искать по промпту, модели, LoRA
+        </div>
+        <div class="chips">
+          <div class="chip on">Все</div>
+          <div class="chip">Избранное</div>
+          <div class="chip">С исходником</div>
+          <div class="chip">flux 2 klein</div>
+        </div>
+      </div>
+
+      <div style="flex-grow:1;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:14px">
+        <div class="row" style="gap:10px">
+          <div class="cap" style="letter-spacing:1.2px">Сегодня</div>
+          <div style="flex-grow:1;height:1px;background:var(--line)"></div>
+          <div class="cap" style="letter-spacing:.6px">12 кадров</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:12px">
+          <div class="tile art a1" style="height:132px;outline:2px solid var(--accent);outline-offset:2px"></div>
+          <div class="tile art a4" style="height:132px"></div>
+          <div class="tile art a2" style="height:132px"></div>
+          <div class="tile art a3" style="height:132px"></div>
+          <div class="tile art a5" style="height:132px"></div>
+          <div class="tile art a6" style="height:132px"></div>
+          <div class="tile art a2" style="height:132px"></div>
+          <div class="tile art a1" style="height:132px"></div>
+        </div>
+
+        <div class="row" style="gap:10px;margin-top:2px">
+          <div class="cap" style="letter-spacing:1.2px">Вчера</div>
+          <div style="flex-grow:1;height:1px;background:var(--line)"></div>
+          <div class="cap" style="letter-spacing:.6px">31 кадр</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4, minmax(0, 1fr));gap:12px">
+          <div class="tile art a3" style="height:132px"></div>
+          <div class="tile art a5" style="height:132px"></div>
+          <div class="tile art a6" style="height:132px"></div>
+          <div class="tile art a4" style="height:132px"></div>
+        </div>
+      </div>
+    </div>
+
+    <div style="width:308px;flex-shrink:0;border-left:1px solid var(--line);background:var(--paper);display:flex;flex-direction:column">
+      <div style="padding:16px;display:flex;flex-direction:column;gap:14px;flex-grow:1;overflow:hidden">
+        <div class="tile art a1" style="height:190px"></div>
+
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div class="cap">Промпт</div>
+          <div style="font-size:13px;line-height:1.45">Чугунный чайник на деревянном столе, утренний свет из окна, пар, мягкие тени</div>
+        </div>
+
+        <div class="grp">
+          <div class="grpb" style="gap:9px">
+            <div class="ctl"><span class="lbl">Модель</span><span class="val">flux 2 klein</span></div>
+            <div class="ctl"><span class="lbl">Шаги · сила</span><span class="val">4 · 3.5</span></div>
+            <div class="ctl"><span class="lbl">Зерно</span><span class="val">381204977</span></div>
+            <div class="ctl"><span class="lbl">Размер</span><span class="val">1024 × 1024</span></div>
+            <div class="ctl"><span class="lbl">LoRA</span><span class="val">film-grain 0.65</span></div>
+            <div class="ctl"><span class="lbl">Время</span><span class="val">6.4 с</span></div>
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="btn primary" style="height:40px;font-size:13px">Повторить кадр</div>
+        <div class="row" style="gap:8px">
+          <div class="btn" style="flex-grow:1;font-size:11px;padding:0 10px">Взять настройки</div>
+          <div class="btn" style="flex-grow:1;font-size:11px;padding:0 10px">Вариации</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

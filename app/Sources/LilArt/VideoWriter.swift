@@ -1,0 +1,192 @@
+import AVFoundation
+import AppKit
+import CoreVideo
+import Foundation
+
+/// Turns the frames the engine hands back into one file you can play, send or drop into
+/// a timeline.
+///
+/// The engine never makes a video: it makes pictures, one per frame, and stops. Every
+/// program that generates video assembles them afterwards, and on a Mac that is
+/// AVFoundation — no ffmpeg, nothing to download, the same encoder Final Cut uses.
+enum VideoWriter {
+  enum Format: String, CaseIterable, Codable, Hashable {
+    /// Plays everywhere, small files. The sane default.
+    case h264
+    /// Same size at better quality, but older programs choke on it.
+    case hevc
+    /// Huge and lossless, for editing rather than sending.
+    case proRes
+
+    var label: String {
+      switch self {
+      case .h264: return "H.264 · mp4"
+      case .hevc: return "HEVC · mp4"
+      case .proRes: return "ProRes 4444 · mov"
+      }
+    }
+
+    var fileExtension: String { self == .proRes ? "mov" : "mp4" }
+
+    var fileType: AVFileType { self == .proRes ? .mov : .mp4 }
+
+    var codec: AVVideoCodecType {
+      switch self {
+      case .h264: return .h264
+      case .hevc: return .hevc
+      case .proRes: return .proRes4444
+      }
+    }
+
+    /// The encoder's default bitrate is tuned for camera footage and leaves generated detail
+    /// smeared, so ask for about 0.2 bits per pixel per frame (never under 2 Mbps).
+    /// ProRes is fixed-quality and must not be given a bitrate at all.
+    func compression(width: Int, height: Int, fps: Double) -> [String: Any]? {
+      guard self != .proRes else { return nil }
+      let perSecond = Double(width) * Double(height) * max(1, fps)
+      var properties: [String: Any] = [
+        AVVideoAverageBitRateKey: max(2_000_000, Int(perSecond * 0.2)),
+        AVVideoExpectedSourceFrameRateKey: Int(max(1, fps).rounded()),
+      ]
+      if self == .h264 { properties[AVVideoProfileLevelKey] = AVVideoProfileLevelH264HighAutoLevel }
+      return properties
+    }
+  }
+
+  enum Failure: LocalizedError {
+    case noFrames
+    case unreadableFrame(Int)
+    case refused(String)
+
+    var errorDescription: String? {
+      switch self {
+      case .noFrames: return "движок не вернул ни одного кадра"
+      case .unreadableFrame(let i): return "кадр \(i + 1) не читается"
+      case .refused(let why): return "не удалось собрать файл: \(why)"
+      }
+    }
+  }
+
+  /// `pngs` are the frames in order, exactly as the engine produced them.
+  static func write(pngs: [Data], fps: Double, to url: URL, format: Format) async throws {
+    guard let first = pngs.first, let firstImage = decode(first) else { throw Failure.noFrames }
+    let width = firstImage.width
+    let height = firstImage.height
+
+    try? FileManager.default.removeItem(at: url)
+    let writer = try AVAssetWriter(outputURL: url, fileType: format.fileType)
+    var settings: [String: Any] = [
+      AVVideoCodecKey: format.codec,
+      AVVideoWidthKey: width,
+      AVVideoHeightKey: height,
+      // Untagged video is guessed at by players, and the guess differs between them; the
+      // same tag goes on every pixel buffer below so the encoder converts with this matrix.
+      AVVideoColorPropertiesKey: [
+        AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+        AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+        AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
+      ],
+    ]
+    if let compression = format.compression(width: width, height: height, fps: fps) {
+      settings[AVVideoCompressionPropertiesKey] = compression
+    }
+    let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+    input.expectsMediaDataInRealTime = false
+    let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+      assetWriterInput: input,
+      sourcePixelBufferAttributes: [
+        kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+        kCVPixelBufferWidthKey as String: width,
+        kCVPixelBufferHeightKey as String: height,
+      ])
+    guard writer.canAdd(input) else { throw Failure.refused("формат не принял кадры") }
+    writer.add(input)
+    guard writer.startWriting() else {
+      try? FileManager.default.removeItem(at: url)
+      throw Failure.refused(writer.error?.localizedDescription ?? "запись не началась")
+    }
+    writer.startSession(atSourceTime: .zero)
+
+    do {
+      // A whole-number timescale keeps 16 and 24 frames a second exact, with no drift over
+      // a long clip.
+      let timescale = CMTimeScale((fps * 1000).rounded())
+      for (index, data) in pngs.enumerated() {
+        try Task.checkCancellation()
+        guard let image = index == 0 ? firstImage : decode(data) else {
+          throw Failure.unreadableFrame(index)
+        }
+        while !input.isReadyForMoreMediaData {
+          if writer.status != .writing {
+            throw Failure.refused(writer.error?.localizedDescription ?? "запись оборвалась")
+          }
+          try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        guard
+          let buffer = pixelBuffer(from: image, width: width, height: height, pool: adaptor.pixelBufferPool)
+        else { throw Failure.unreadableFrame(index) }
+        let time = CMTime(value: CMTimeValue(index * 1000), timescale: timescale)
+        if !adaptor.append(buffer, withPresentationTime: time) {
+          throw Failure.refused(writer.error?.localizedDescription ?? "кадр не записался")
+        }
+      }
+      input.markAsFinished()
+
+      await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+        writer.finishWriting { done.resume() }
+      }
+      if writer.status != .completed {
+        throw Failure.refused(writer.error?.localizedDescription ?? "файл не закрылся")
+      }
+    } catch {
+      // A half-written file looks like a finished one to the gallery and to the player, so
+      // nothing is left at the destination when anything went wrong.
+      if writer.status == .writing { writer.cancelWriting() }
+      try? FileManager.default.removeItem(at: url)
+      throw error
+    }
+  }
+
+  static func decode(_ data: Data) -> CGImage? {
+    guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+    return CGImageSourceCreateImageAtIndex(source, 0, nil)
+  }
+
+  private static func pixelBuffer(
+    from image: CGImage, width: Int, height: Int, pool: CVPixelBufferPool?
+  ) -> CVPixelBuffer? {
+    var buffer: CVPixelBuffer?
+    if let pool {
+      CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &buffer)
+    }
+    if buffer == nil {
+      CVPixelBufferCreate(
+        kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA,
+        [
+          kCVPixelBufferCGImageCompatibilityKey: true,
+          kCVPixelBufferCGBitmapContextCompatibilityKey: true,
+        ] as CFDictionary, &buffer)
+    }
+    guard let buffer else { return nil }
+    CVBufferSetAttachment(
+      buffer, kCVImageBufferColorPrimariesKey, kCVImageBufferColorPrimaries_ITU_R_709_2,
+      .shouldPropagate)
+    CVBufferSetAttachment(
+      buffer, kCVImageBufferTransferFunctionKey, kCVImageBufferTransferFunction_ITU_R_709_2,
+      .shouldPropagate)
+    CVBufferSetAttachment(
+      buffer, kCVImageBufferYCbCrMatrixKey, kCVImageBufferYCbCrMatrix_ITU_R_709_2, .shouldPropagate)
+    CVPixelBufferLockBaseAddress(buffer, [])
+    defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+    guard let base = CVPixelBufferGetBaseAddress(buffer),
+      let context = CGContext(
+        data: base, width: width, height: height, bitsPerComponent: 8,
+        bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+        space: CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB(),
+        bitmapInfo: CGImageAlphaInfo.noneSkipFirst.rawValue
+          | CGBitmapInfo.byteOrder32Little.rawValue)
+    else { return nil }
+    context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    return buffer
+  }
+}

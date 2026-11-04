@@ -1,0 +1,126 @@
+<div class="win">
+  <div class="reg tl"></div><div class="reg tr"></div><div class="reg bl"></div><div class="reg br"></div>
+  <div class="titlebar">
+    <div class="keys">
+      <div class="key"></div><div class="key"></div><div class="key on"></div>
+    </div>
+    <div class="wordmark">lil <span class="soft">art</span></div>
+    <div class="spacer"></div>
+    <div class="seg">
+      <div>Генерация</div>
+      <div>Лента</div>
+      <div class="on">Модели</div>
+      <div>Пресеты</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="row" style="gap:9px">
+      <div class="led hot"></div>
+      <div class="cap" style="color:var(--ink)">Качается 1</div>
+    </div>
+  </div>
+
+  <div class="body">
+    <div style="width:212px;flex-shrink:0;border-right:1px solid var(--line);padding:14px 12px;display:flex;flex-direction:column;gap:5px">
+      <div class="cap" style="padding:4px 8px 8px">Каталог</div>
+      <div class="row" style="gap:9px;padding:9px 10px;border-radius:9px;background:var(--panel);font-size:13px;font-weight:600">Модели<span class="spacer"></span><span class="val" style="font-family:var(--mono);font-size:11px;color:var(--muted)">24</span></div>
+      <div class="row" style="gap:9px;padding:9px 10px;border-radius:9px;font-size:13px;color:var(--muted)">LoRA<span class="spacer"></span><span style="font-family:var(--mono);font-size:11px">106</span></div>
+      <div class="row" style="gap:9px;padding:9px 10px;border-radius:9px;font-size:13px;color:var(--muted)">Уточнители<span class="spacer"></span><span style="font-family:var(--mono);font-size:11px">7</span></div>
+      <div class="row" style="gap:9px;padding:9px 10px;border-radius:9px;font-size:13px;color:var(--muted)">Управление позой<span class="spacer"></span><span style="font-family:var(--mono);font-size:11px">9</span></div>
+
+      <div style="height:1px;background:var(--line);margin:10px 2px"></div>
+      <div class="cap" style="padding:4px 8px 8px">На диске</div>
+      <div class="row" style="gap:9px;padding:9px 10px;border-radius:9px;font-size:13px;color:var(--muted)">Установленные<span class="spacer"></span><span style="font-family:var(--mono);font-size:11px">5</span></div>
+
+      <div class="spacer"></div>
+      <div style="padding:11px;border:1px solid var(--line);border-radius:9px;background:var(--panel);display:flex;flex-direction:column;gap:8px">
+        <div class="cap" style="letter-spacing:1px">Занято моделями</div>
+        <div class="track"><div class="fill" style="width:41%;background:var(--accent)"></div></div>
+        <div class="row" style="justify-content:space-between">
+          <span style="font-family:var(--mono);font-size:11px;font-weight:700">18.2 ГБ</span>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">свободно 262 ГБ</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex-grow:1;display:flex;flex-direction:column;min-width:0">
+      <div style="flex-shrink:0;display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel)">
+        <div class="field" style="flex-grow:1;display:flex;align-items:center;gap:8px;padding:8px 11px;color:var(--muted);background:var(--panel-2);font-family:var(--mono);font-size:12px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"></path><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"></path></svg>
+          hf://автор/название — вставьте ссылку, чтобы добавить свою модель
+        </div>
+        <div class="btn" style="height:34px;font-size:11px;padding:0 14px">Добавить</div>
+      </div>
+
+      <div style="flex-grow:1;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:10px">
+
+        <div class="grp">
+          <div style="display:flex;align-items:center;gap:13px;padding:13px 14px">
+            <div class="tile art a4" style="width:52px;height:52px;flex-shrink:0;border-radius:9px"></div>
+            <div style="flex-grow:1;min-width:0">
+              <div class="row" style="gap:7px">
+                <span style="font-size:13px;font-weight:700">flux 2 klein 4b q8p</span>
+                <span class="chip" style="padding:2px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.8px;background:var(--accent);border-color:var(--accent);color:var(--accent-ink)">ВЫБРАНА</span>
+              </div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:11px;margin-top:4px">4.1 ГБ · быстрая, 4 шага · лучший баланс для 24 ГБ памяти</div>
+            </div>
+            <div class="ghost" style="border-color:var(--line);color:var(--muted)">Удалить</div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div style="display:flex;align-items:center;gap:13px;padding:13px 14px">
+            <div class="tile art a5" style="width:52px;height:52px;flex-shrink:0;border-radius:9px"></div>
+            <div style="flex-grow:1;min-width:0">
+              <div class="row" style="gap:7px">
+                <span style="font-size:13px;font-weight:700">qwen image 20b q6p</span>
+              </div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:11px;margin-top:5px">14.8 ГБ · сильна в тексте на картинке</div>
+              <div class="track" style="margin-top:8px"><div class="fill" style="width:63%;background:var(--accent)"></div></div>
+            </div>
+            <div style="text-align:right;flex-shrink:0">
+              <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--accent)">63 %</div>
+              <div class="cap" style="letter-spacing:.5px;margin-top:3px">9.3 из 14.8 ГБ</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div style="display:flex;align-items:center;gap:13px;padding:13px 14px">
+            <div class="tile art a6" style="width:52px;height:52px;flex-shrink:0;border-radius:9px"></div>
+            <div style="flex-grow:1;min-width:0">
+              <div style="font-size:13px;font-weight:700">sdxl base 1.0</div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:11px;margin-top:4px">6.9 ГБ · огромная библиотека LoRA</div>
+            </div>
+            <div class="ghost" style="border-color:var(--line);color:var(--ink)">Скачать</div>
+          </div>
+        </div>
+
+        <div class="grp">
+          <div style="display:flex;align-items:center;gap:13px;padding:13px 14px">
+            <div class="tile art a2" style="width:52px;height:52px;flex-shrink:0;border-radius:9px"></div>
+            <div style="flex-grow:1;min-width:0">
+              <div class="row" style="gap:7px">
+                <span style="font-size:13px;font-weight:700">wan 2.2 video 5b</span>
+                <span class="chip" style="padding:2px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.8px">ВИДЕО</span>
+              </div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:11px;margin-top:4px">9.4 ГБ · короткие ролики из кадра</div>
+            </div>
+            <div class="ghost" style="border-color:var(--line);color:var(--ink)">Скачать</div>
+          </div>
+        </div>
+
+        <div class="grp" style="opacity:.5">
+          <div style="display:flex;align-items:center;gap:13px;padding:13px 14px">
+            <div class="tile art a3" style="width:52px;height:52px;flex-shrink:0;border-radius:9px"></div>
+            <div style="flex-grow:1;min-width:0">
+              <div style="font-size:13px;font-weight:700">flux 2 dev 32b</div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:11px;margin-top:4px">Нужно около 40 ГБ памяти · не поместится на этом маке</div>
+            </div>
+            <div class="ghost" style="border-color:var(--line);color:var(--muted)">Не влезет</div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</div>

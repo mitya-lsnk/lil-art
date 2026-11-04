@@ -1,0 +1,307 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+/* lil art — design lifted from the lil software landing (~/Claudeboy/landing/index.html).
+   Paper theme is the studio default; the image stage stays a dark viewfinder,
+   exactly as the landing renders lil edit's finder and lil view's stage. */
+:root{
+  --bg:#e7e4da; --panel:#f3f1e9; --panel-2:#ebe8de;
+  --ink:#17150f; --muted:#6c6a5f; --line:#17150f;
+  --hair:rgba(23,21,15,.22);
+  --accent:#ff3d0d; --accent-ink:#fff;
+  --led:#2fbf4c; --led-glow:rgba(47,191,76,.35);
+  --amber:#ffb000; --cute:#ff4f9a;
+  --btn-shadow:#17150f;
+  --mono:ui-monospace,"SF Mono",Menlo,"Roboto Mono",monospace;
+  --sans:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.5;-webkit-font-smoothing:antialiased}
+a{color:var(--accent)} a:hover{color:#c82f08}
+.mono{font-family:var(--mono)}
+
+/* ---- window shell ---- */
+.win{position:relative;width:1180px;height:760px;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+.win::after{content:"";position:absolute;inset:0;z-index:200;pointer-events:none;opacity:.05;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E")}
+.reg{position:absolute;z-index:120;width:16px;height:16px;pointer-events:none;opacity:.8}
+.reg.tl{top:9px;left:9px;border-top:2px solid var(--ink);border-left:2px solid var(--ink)}
+.reg.tr{top:9px;right:9px;border-top:2px solid var(--ink);border-right:2px solid var(--ink)}
+.reg.bl{bottom:9px;left:9px;border-bottom:2px solid var(--ink);border-left:2px solid var(--ink)}
+.reg.br{bottom:9px;right:9px;border-bottom:2px solid var(--ink);border-right:2px solid var(--ink)}
+
+/* ---- status bar ---- */
+.titlebar{height:46px;flex-shrink:0;display:flex;align-items:center;gap:13px;padding:0 26px;
+  background:var(--bg);border-bottom:1px solid var(--line);
+  font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase}
+.keys{display:flex;gap:4px}
+.key{width:17px;height:15px;border:1px solid var(--hair);border-radius:3px;background:var(--panel)}
+.key.on{background:var(--accent);border-color:var(--accent)}
+.wordmark{font-family:var(--sans);font-size:19px;font-weight:800;letter-spacing:-.045em;text-transform:none}
+.wordmark .soft{font-weight:400;font-size:.62em;color:var(--muted)}
+.sep{opacity:.35}
+.spacer{flex-grow:1}
+.sw{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;line-height:1;
+  border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:6px 10px;
+  display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.sw.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.seg{display:flex;gap:-1px}
+.seg > div{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;line-height:1;
+  border:1px solid var(--line);border-right:none;background:var(--panel);color:var(--muted);padding:7px 12px;white-space:nowrap}
+.seg > div:last-child{border-right:1px solid var(--line)}
+.seg > div.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.seg > div.on + div{border-left-color:var(--line)}
+.led{width:8px;height:8px;border-radius:50%;background:var(--led);flex-shrink:0;
+  box-shadow:0 0 0 3px var(--led-glow),0 0 7px var(--led)}
+.led.amber{background:var(--amber);box-shadow:0 0 0 3px rgba(255,176,0,.25),0 0 7px var(--amber)}
+.led.hot{background:var(--accent);box-shadow:0 0 0 3px rgba(255,61,13,.25),0 0 7px var(--accent)}
+.led.off{background:var(--muted);box-shadow:0 0 0 3px var(--hair)}
+.iconbtn{width:28px;height:28px;border:1px solid var(--line);background:var(--panel);display:flex;align-items:center;justify-content:center;color:var(--ink)}
+
+/* ---- layout ---- */
+.body{flex-grow:1;display:flex;min-height:0}
+.side{width:352px;flex-shrink:0;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.sidescroll{flex-grow:1;overflow:hidden;padding:18px;display:flex;flex-direction:column;gap:16px}
+.row{display:flex;align-items:center;gap:8px}
+
+/* ---- section label with hairline rule ---- */
+.cap{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);
+  display:flex;align-items:center;gap:9px}
+.cap::before{content:"";width:22px;height:1px;background:var(--ink);opacity:.5;flex-shrink:0}
+.cap.bare::before{display:none}
+
+/* ---- panels ---- */
+.grp{border:1px solid var(--line);background:var(--panel);border-radius:14px;overflow:hidden;box-shadow:4px 4px 0 var(--hair)}
+.grph{display:flex;align-items:center;gap:8px;padding:10px 13px;border-bottom:1px solid var(--line);background:var(--panel-2);
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase}
+.grpb{padding:14px;display:flex;flex-direction:column;gap:12px}
+.slot{border:1px dashed var(--line);border-radius:12px;background:var(--panel);padding:16px}
+
+/* ---- spec rows with dotted leaders ---- */
+.ctl{display:flex;align-items:baseline;gap:8px;font-family:var(--mono);font-size:12px}
+.ctl .lbl{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap;font-size:11px}
+.ctl::after{content:"";flex-grow:1;order:1;border-bottom:1px dotted var(--hair);transform:translateY(-4px)}
+.ctl .val{order:2;white-space:nowrap;font-weight:600}
+
+/* ---- inputs ---- */
+.field{background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:11px 13px;font-size:13px;line-height:1.45;color:var(--ink)}
+.field.ph{color:var(--muted)}
+.sel{height:32px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px;
+  border:1px solid var(--line);border-radius:7px;background:var(--panel-2);font-family:var(--mono);font-size:11px;letter-spacing:.04em}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;line-height:1;
+  padding:7px 10px;border:1px solid var(--line);background:var(--panel);color:var(--muted)}
+.chip.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.chip.dash{border-style:dashed}
+.track{height:4px;border:1px solid var(--line);border-radius:3px;background:var(--panel-2);position:relative}
+.track .fill{position:absolute;left:-1px;top:-1px;bottom:-1px;border:1px solid var(--line);border-radius:3px;background:var(--accent)}
+.track .knob{position:absolute;top:50%;width:13px;height:13px;margin-top:-7px;margin-left:-7px;
+  border:1.5px solid var(--ink);border-radius:3px;background:var(--panel)}
+.toggle{width:40px;height:22px;border:1.5px solid var(--ink);border-radius:999px;background:var(--panel-2);position:relative;flex-shrink:0}
+.toggle::after{content:"";position:absolute;top:50%;left:3px;transform:translateY(-50%);width:14px;height:14px;
+  border-radius:50%;background:var(--panel);border:1px solid var(--ink)}
+.toggle.on{background:var(--accent)}
+.toggle.on::after{left:auto;right:3px;background:#fff}
+
+/* ---- hardware buttons ---- */
+.btn{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  display:inline-flex;align-items:center;justify-content:center;gap:8px;
+  background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:9px;padding:11px 16px;
+  box-shadow:0 3px 0 var(--btn-shadow)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);font-size:13px;padding:14px 18px;box-shadow:0 4px 0 var(--btn-shadow)}
+.btn .kbd{opacity:.7;font-weight:400}
+
+/* ---- hood strip ---- */
+.hood{border-top:1px solid var(--line);background:var(--panel-2);padding:12px 18px;display:flex;align-items:center;gap:10px}
+.hood .sum{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);
+  flex-grow:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---- viewfinder stage ---- */
+.stage{flex-grow:1;background:var(--panel-2);display:flex;flex-direction:column;min-width:0}
+.stagemain{flex-grow:1;display:flex;align-items:center;justify-content:center;padding:22px;min-height:0}
+.finder{position:relative;background:#000;border-radius:6px;overflow:hidden;box-shadow:inset 0 0 0 1px var(--line)}
+.hud{position:absolute;inset:0;pointer-events:none;font-family:var(--mono);color:#fff;text-shadow:0 1px 2px rgba(0,0,0,.6)}
+.hud .rec{position:absolute;top:10px;left:12px;font-size:10px;letter-spacing:.1em;display:flex;align-items:center;gap:6px}
+.hud .rec .dot{width:8px;height:8px;border-radius:50%;background:#ff2d2d}
+.hud .set{position:absolute;top:10px;right:12px;font-size:10px;letter-spacing:.08em;text-align:right;opacity:.9;line-height:1.6}
+.hud .ts{position:absolute;bottom:10px;right:12px;font-size:11px;letter-spacing:.05em;color:var(--amber)}
+.hud .bat{position:absolute;bottom:10px;left:12px;font-size:10px;letter-spacing:.08em}
+.hud .br{position:absolute;width:16px;height:16px;border-color:#fff;opacity:.8}
+.hud .br.a{top:32px;left:12px;border-top:2px solid;border-left:2px solid}
+.hud .br.b{top:32px;right:12px;border-top:2px solid;border-right:2px solid}
+.hud .br.c{bottom:32px;left:12px;border-bottom:2px solid;border-left:2px solid}
+.hud .br.d{bottom:32px;right:12px;border-bottom:2px solid;border-right:2px solid}
+
+/* ---- film strip ---- */
+.strip{flex-shrink:0;border-top:1px solid var(--line);background:var(--panel);padding:11px 18px;display:flex;align-items:center;gap:9px}
+.thumb{width:52px;height:52px;border:1px solid var(--hair);border-radius:4px;flex-shrink:0}
+.thumb.on{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.ghost{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;line-height:1;
+  padding:7px 10px;border:1px solid var(--line);background:var(--panel);color:var(--ink);display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+
+/* ---- image placeholders ---- */
+.art{background:#191713;position:relative;overflow:hidden}
+.art.a1{background-image:radial-gradient(120% 90% at 22% 18%,#ffb37a 0%,#f2601a 26%,#7d2b12 52%,#241a18 78%),radial-gradient(60% 60% at 78% 84%,rgba(74,134,255,.5) 0%,rgba(0,0,0,0) 70%)}
+.art.a2{background-image:radial-gradient(80% 70% at 70% 30%,#9fd8c0 0%,#35815f 40%,#12261f 75%),radial-gradient(50% 50% at 20% 80%,rgba(255,61,13,.45) 0%,rgba(0,0,0,0) 70%)}
+.art.a3{background-image:radial-gradient(90% 80% at 35% 75%,#b9a8ff 0%,#4a3b9e 42%,#1a1726 78%),radial-gradient(40% 40% at 80% 20%,rgba(241,239,228,.35) 0%,rgba(0,0,0,0) 70%)}
+.art.a4{background-image:radial-gradient(95% 85% at 60% 40%,#ffd9a0 0%,#c2761f 35%,#2a1c10 76%)}
+.art.a5{background-image:radial-gradient(85% 85% at 25% 30%,#8fb6ff 0%,#2b4a9c 45%,#14182a 80%)}
+.art.a6{background-image:radial-gradient(90% 90% at 50% 60%,#f2a0b8 0%,#a33a63 40%,#2a141c 78%)}
+
+/* ---- small descriptive mono text (no hairline rule) ---- */
+.note{font-family:var(--mono);font-size:10px;letter-spacing:.06em;color:var(--muted);line-height:1.5}
+.name{font-family:var(--sans);font-size:13px;font-weight:700;letter-spacing:-.01em}
+.big{font-family:var(--sans);font-weight:800;letter-spacing:-.03em}
+.tile{border:1px solid var(--hair);border-radius:4px}
+  </style>
+</helmet>
+<div class="win">
+  <div class="reg tl"></div><div class="reg tr"></div><div class="reg bl"></div><div class="reg br"></div>
+  <div class="titlebar">
+    <div class="keys">
+      <div class="key"></div><div class="key"></div><div class="key on"></div>
+    </div>
+    <div class="wordmark">lil <span class="soft">art</span></div>
+    <div class="spacer"></div>
+    <div class="seg">
+      <div>Генерация</div>
+      <div>Лента</div>
+      <div>Модели</div>
+      <div class="on">Пресеты</div>
+    </div>
+    <div class="spacer"></div>
+    <div class="cap">Пресеты</div>
+  </div>
+
+  <div class="body">
+    <div style="width:212px;flex-shrink:0;border-right:1px solid var(--line);padding:14px 12px;display:flex;flex-direction:column;gap:5px">
+      <div class="cap" style="padding:4px 8px 8px">Пресеты</div>
+      <div class="row" style="gap:9px;padding:9px 10px;border-radius:9px;background:var(--panel);font-size:13px;font-weight:600">Мои<span class="spacer"></span><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">7</span></div>
+      <div class="row" style="gap:9px;padding:9px 10px;border-radius:9px;font-size:13px;color:var(--muted)">Встроенные<span class="spacer"></span><span style="font-family:var(--mono);font-size:11px">18</span></div>
+
+      <div style="height:1px;background:var(--line);margin:10px 2px"></div>
+      <div class="cap" style="padding:4px 8px 8px">Источники</div>
+      <div style="padding:8px 10px;border-radius:9px;font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px">
+        <div class="row" style="gap:7px"><div class="led"></div><span style="color:var(--ink);font-weight:500">мои-пресеты</span></div>
+        <span style="font-family:var(--mono);font-size:10px;padding-left:13px">github · 12 шт</span>
+      </div>
+      <div style="padding:8px 10px;border-radius:9px;font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:4px">
+        <div class="row" style="gap:7px"><div class="led amber"></div><span style="color:var(--ink);font-weight:500">студийный свет</span></div>
+        <span style="font-family:var(--mono);font-size:10px;padding-left:13px">есть обновление</span>
+      </div>
+
+      <div class="spacer"></div>
+      <div class="btn" style="height:34px;font-size:11px">+ Источник</div>
+    </div>
+
+    <div style="flex-grow:1;display:flex;flex-direction:column;min-width:0">
+      <div style="flex-shrink:0;display:flex;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--line);background:var(--panel)">
+        <div class="field" style="flex-grow:1;padding:8px 11px;background:var(--panel-2);font-family:var(--mono);font-size:11px;color:var(--muted)">https://github.com/имя/lil-art-presets</div>
+        <div class="btn" style="height:34px;font-size:11px;padding:0 14px">Подключить</div>
+        <div class="btn" style="height:34px;font-size:11px;padding:0 14px">Выгрузить мои</div>
+      </div>
+
+      <div style="flex-grow:1;overflow:hidden;padding:16px;display:flex;flex-direction:column;gap:12px">
+        <div class="row" style="gap:10px">
+          <div class="cap" style="letter-spacing:1.2px">Мои пресеты</div>
+          <div style="flex-grow:1;height:1px;background:var(--line)"></div>
+          <div class="cap" style="letter-spacing:.6px">обновлены 2 дня назад</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:12px">
+
+          <div class="grp">
+            <div class="tile art a1" style="height:96px;border-radius:0"></div>
+            <div class="grpb" style="gap:8px;padding:11px">
+              <div class="row">
+                <span style="font-size:12px;font-weight:700">Плёнка 35 мм</span>
+                <div class="spacer"></div>
+                <div class="led"></div>
+              </div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:10px;line-height:1.5">flux 2 klein · 4 шага · cfg 3.5<br>film-grain 0.65</div>
+            </div>
+          </div>
+
+          <div class="grp">
+            <div class="tile art a4" style="height:96px;border-radius:0"></div>
+            <div class="grpb" style="gap:8px;padding:11px">
+              <div class="row">
+                <span style="font-size:12px;font-weight:700">Продукт на белом</span>
+                <div class="spacer"></div>
+              </div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:10px;line-height:1.5">flux 2 klein · 6 шагов · cfg 4<br>без LoRA</div>
+            </div>
+          </div>
+
+          <div class="grp">
+            <div class="tile art a3" style="height:96px;border-radius:0"></div>
+            <div class="grpb" style="gap:8px;padding:11px">
+              <div class="row">
+                <span style="font-size:12px;font-weight:700">Мягкий портрет</span>
+                <div class="spacer"></div>
+              </div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:10px;line-height:1.5">sdxl base · 28 шагов · cfg 6.5<br>detail-tweaker 0.8</div>
+            </div>
+          </div>
+
+        </div>
+
+        <div class="row" style="gap:10px;margin-top:2px">
+          <div class="cap" style="letter-spacing:1.2px">Из источника · студийный свет</div>
+          <div style="flex-grow:1;height:1px;background:var(--line)"></div>
+          <div class="cap" style="color:var(--amber);letter-spacing:.6px">3 новых</div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:repeat(3, minmax(0, 1fr));gap:12px">
+
+          <div class="grp">
+            <div class="tile art a5" style="height:96px;border-radius:0"></div>
+            <div class="grpb" style="gap:8px;padding:11px">
+              <div class="row">
+                <span style="font-size:12px;font-weight:700">Контровой свет</span>
+                <div class="spacer"></div>
+                <span class="cap" style="color:var(--accent);font-size:10px">Взять</span>
+              </div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:10px;line-height:1.5">нужна модель sdxl base<br>её нет на диске</div>
+            </div>
+          </div>
+
+          <div class="grp">
+            <div class="tile art a6" style="height:96px;border-radius:0"></div>
+            <div class="grpb" style="gap:8px;padding:11px">
+              <div class="row">
+                <span style="font-size:12px;font-weight:700">Жёсткая тень</span>
+                <div class="spacer"></div>
+                <span class="cap" style="color:var(--accent);font-size:10px">Взять</span>
+              </div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:10px;line-height:1.5">flux 2 klein · 4 шага<br>всё на месте</div>
+            </div>
+          </div>
+
+          <div class="grp">
+            <div class="tile art a2" style="height:96px;border-radius:0"></div>
+            <div class="grpb" style="gap:8px;padding:11px">
+              <div class="row">
+                <span style="font-size:12px;font-weight:700">Окно слева</span>
+                <div class="spacer"></div>
+                <span class="cap" style="color:var(--accent);font-size:10px">Взять</span>
+              </div>
+              <div class="note" style="letter-spacing:.5px;text-transform:none;font-size:10px;line-height:1.5">flux 2 klein · 8 шагов<br>всё на месте</div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
