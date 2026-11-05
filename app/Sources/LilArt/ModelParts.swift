@@ -67,6 +67,12 @@ enum ModelParts {
     var name: String
     var slot: Slot
     var stock: String
+    /// Other standard files with the very same tensors (names and sizes) that the copy paired
+    /// fully with too: Krea 2 and FLUX.3 klein ship the same Qwen3-VL-4B in two storages, and
+    /// one copy serves both. Absent in entries written before it existed.
+    var alsoFits: [String]? = nil
+
+    func fits(_ standard: String) -> Bool { stock == standard || alsoFits?.contains(standard) == true }
   }
 
   enum Failure: Error {
@@ -614,6 +620,11 @@ enum ModelParts {
 
   private typealias Candidate = (stock: Stock, tensors: [StockTensor])
 
+  /// Tensor names with their sizes: two standard files alike in this read the same written copy.
+  private static func layout(_ tensors: [StockTensor]) -> Set<String> {
+    Set(tensors.map { "\($0.key)|\($0.shape)" })
+  }
+
   /// Standard parts the new file could be a copy of, the closest in size first: a file with
   /// exactly the standard tensors and nothing more.
   private static func candidates(for tensors: [SourceTensor], in dir: URL, catalog: URL) -> [Candidate] {
@@ -703,6 +714,7 @@ enum ModelParts {
       // from Wan's, so a copy of either pairs fully with both, only more tightly with its own.
       var best: (candidate: Candidate, pairs: [Pair], float32: [Bool], mean: Double)?
       var closest: (stock: String, matched: Int, total: Int)?
+      var fullyPaired: [Candidate] = []
       // pairing is quick next to writing, which spends its time on the 8-bit palettes
       let share = 0.1 / Double(candidates.count)
       for (number, candidate) in candidates.enumerated() {
@@ -717,6 +729,7 @@ enum ModelParts {
           }
           continue
         }
+        fullyPaired.append(candidate)
         let mean = pairs.reduce(0) { $0 + $1.score } / Double(max(1, pairs.count))
         if mean > best?.mean ?? -1 { best = (candidate, pairs, result.float32, mean) }
       }
@@ -751,8 +764,14 @@ enum ModelParts {
             }
           }
           try fm.moveItem(at: partial, to: destination)
+          let layout = Self.layout(candidate.tensors)
+          let others = fullyPaired.filter {
+            $0.stock.file != candidate.stock.file && $0.stock.slot == candidate.stock.slot
+              && Self.layout($0.tensors) == layout
+          }.map(\.stock.file)
           let entry = Entry(
-            name: displayName(for: source), slot: candidate.stock.slot, stock: candidate.stock.file)
+            name: displayName(for: source), slot: candidate.stock.slot, stock: candidate.stock.file,
+            alsoFits: others.isEmpty ? nil : others)
           try add(file, entry, in: dir)
           return Outcome(file: file, entry: entry)
         } catch {

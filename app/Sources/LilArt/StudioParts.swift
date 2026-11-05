@@ -29,7 +29,7 @@ extension Studio {
     guard let entry else { return [] }
     return ModelParts.Slot.allCases.compactMap { slot in
       guard let stock = entry.parts[slot] else { return nil }
-      let options = library.parts.filter { $0.part?.slot == slot && $0.part?.stock == stock }
+      let options = library.parts.filter { $0.part?.slot == slot && $0.part?.fits(stock) == true }
       return PartChoice(slot: slot, stock: stock, options: options)
     }
   }

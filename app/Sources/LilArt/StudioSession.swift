@@ -239,7 +239,7 @@ extension Studio {
       // added to be used: the selected models it fits switch to it right away
       guard let part = item.part else { return }
       var switched: [String] = []
-      for entry in [modelEntry, videoEntry].compactMap({ $0 }) where entry.parts[part.slot] == part.stock {
+      for entry in [modelEntry, videoEntry].compactMap({ $0 }) where entry.parts[part.slot].map(part.fits) == true {
         choosePart(item.file, part.slot, for: entry)
         switched.append(entry.name)
       }

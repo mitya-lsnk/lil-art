@@ -693,6 +693,7 @@ struct LilArtGen {
         emit([
           "PART", outcome.file, outcome.entry.slot.rawValue, outcome.entry.stock,
           String(format: "%.0f", Date().timeIntervalSince(started)),
+          "also=" + (outcome.entry.alsoFits ?? []).joined(separator: ","),
         ])
       }
     } catch { fail(error) }
