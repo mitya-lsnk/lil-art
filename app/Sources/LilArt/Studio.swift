@@ -197,6 +197,7 @@ final class Studio: ObservableObject {
 
   let translator = Translator()
   let monitor = SystemMonitor()
+  let power = PowerMode()
   let engineHost = EngineHost()
   let assist = PromptAssist()
   let engine = Engine()

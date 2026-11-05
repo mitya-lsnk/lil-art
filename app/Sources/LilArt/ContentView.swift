@@ -91,6 +91,7 @@ private struct TopBar: View {
 
       Spacer(minLength: 12)
       MemoryChip(s: s)
+      PowerModeButton(s: s).padding(.leading, 6)
       SettingsButton(s: s).padding(.leading, 6)
     }
     .padding(.trailing, 16)
