@@ -34,6 +34,7 @@ struct Sidebar: View {
               if s.negativeOn { NegativeBox(s: s) }
 
               ProSizeBlock(s: s)
+              ShapeWarning(s: s)
               UpscaleSection(s: s)
 
               HStack {
@@ -63,6 +64,7 @@ struct Sidebar: View {
                 .font(.mono(9)).tracking(0.3).foregroundStyle(P.muted)
               }
               SizeRow(s: s)
+              ShapeWarning(s: s)
               UpscaleSection(s: s)
             }
 
@@ -557,6 +559,21 @@ struct GenerateBar: View {
         }
         .help("прервать и очистить очередь")
       }
+    }
+  }
+}
+
+/// Said under the size on the edit tab when the size is another shape than the picture.
+@available(macOS 26, *)
+struct ShapeWarning: View {
+  @ObservedObject var s: Studio
+
+  var body: some View {
+    if let text = s.editShapeWarning {
+      Text(text)
+        .font(.mono(9)).tracking(0.3).foregroundStyle(P.accent)
+        .fixedSize(horizontal: false, vertical: true)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
   }
 }

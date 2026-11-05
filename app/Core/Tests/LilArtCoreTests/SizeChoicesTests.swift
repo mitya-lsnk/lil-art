@@ -70,3 +70,38 @@ import Testing
     #expect(SizeFit.best(ratio: 1, area: -5, maxSide: 4096) == nil)
   }
 }
+
+@Suite struct SizeNearSourceTests {
+  @Test func aPictureThatAlreadyFitsTheStepsKeepsItsOwnSize() {
+    #expect(SizeFit.nearSource(width: 896, height: 1152)?.width == 896)
+    #expect(SizeFit.nearSource(width: 896, height: 1152)?.height == 1152)
+    #expect(SizeFit.nearSource(width: 1344, height: 768)?.width == 1344)
+    #expect(SizeFit.nearSource(width: 1344, height: 768)?.height == 768)
+    #expect(SizeFit.nearSource(width: 512, height: 512)?.width == 512)
+  }
+
+  @Test func anOddPictureGetsTheNearestLegalSizeInTheSameShape() throws {
+    let fit = try #require(SizeFit.nearSource(width: 1000, height: 1500))
+    #expect(fit.width % 64 == 0 && fit.height % 64 == 0)
+    #expect(!SizeFit.shapesDiffer(picture: (1000, 1500), run: fit))
+    #expect(abs(Double(fit.width * fit.height) / 1_500_000 - 1) < 0.15)
+  }
+
+  @Test func aHugePhotoIsBroughtDownToFourMegapixelsInItsShape() throws {
+    let fit = try #require(SizeFit.nearSource(width: 6000, height: 4000))
+    #expect(fit.width * fit.height <= 4_300_000)
+    #expect(!SizeFit.shapesDiffer(picture: (6000, 4000), run: fit))
+  }
+
+  @Test func nonsenseGivesNothing() {
+    #expect(SizeFit.nearSource(width: 0, height: 10) == nil)
+    #expect(SizeFit.nearSource(width: 10, height: -1) == nil)
+  }
+
+  @Test func theOldPresetSnapWouldHaveSqueezedThePictureAndIsFlagged() {
+    #expect(SizeFit.shapesDiffer(picture: (896, 1152), run: (832, 1216)))
+    #expect(!SizeFit.shapesDiffer(picture: (896, 1152), run: (896, 1152)))
+    #expect(!SizeFit.shapesDiffer(picture: (1000, 1500), run: (960, 1472)))
+    #expect(!SizeFit.shapesDiffer(picture: (0, 0), run: (1, 1)))
+  }
+}

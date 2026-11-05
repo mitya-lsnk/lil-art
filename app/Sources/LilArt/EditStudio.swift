@@ -395,24 +395,33 @@ extension Studio {
   /// as the chosen size class gives (the model's comfortable size), so a 16:7 picture gets
   /// 1536×640, not a square or a guess.
   func fitSizeToPicture() {
-    guard let url = pictureToFit,
-      let source = CGImageSourceCreateWithURL(url as CFURL, nil),
-      let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-      let pw = props[kCGImagePropertyPixelWidth] as? Int,
-      let ph = props[kCGImagePropertyPixelHeight] as? Int, pw > 0, ph > 0
+    guard let url = pictureToFit else { return }
+    fitSize(toPictureAt: url)
+  }
+
+  /// The run's size becomes the picture's own (896×1152 stays 896×1152), so nothing is cropped
+  /// or stretched without being asked. Exact sizes live in PRO; switching it on first keeps them.
+  func fitSize(toPictureAt url: URL) {
+    guard let pixels = RegionLayout.pixelSize(url), pixels.width > 0, pixels.height > 0,
+      let best = SizeFit.nearSource(width: Int(pixels.width), height: Int(pixels.height))
     else {
       status = "размер картинки не прочитался"
       return
     }
-    let (bw, bh) = megapixels.size(for: aspect)
-    let best = SizeFit.best(ratio: Double(pw) / Double(ph), area: Double(bw * bh), maxSide: 4096)
-    guard let best else { return }
-    if !pro { pro = true }  // exact sizes live in PRO; switching first keeps them
+    if !pro { pro = true }
     proWidth = best.width
     proHeight = best.height
     widthText = String(best.width)
     heightText = String(best.height)
-    status = "размер \(best.width)×\(best.height) — по картинке \(pw)×\(ph)"
+    status = "размер \(best.width)×\(best.height) — по картинке \(Int(pixels.width))×\(Int(pixels.height))"
+  }
+
+  /// A warning for the edit tab when the size set is another shape than the picture's.
+  var editShapeWarning: String? {
+    guard tab == .edit, let url = editSource?.url, let pixels = RegionLayout.pixelSize(url) else { return nil }
+    let (w, h) = effectiveSize
+    guard SizeFit.shapesDiffer(picture: (Int(pixels.width), Int(pixels.height)), run: (w, h)) else { return nil }
+    return "форма \(w)×\(h) не такая, как у картинки \(Int(pixels.width))×\(Int(pixels.height)): края обрежутся или картинку растянет. «По картинке» вернёт её размер"
   }
 
   // MARK: the models folder itself
