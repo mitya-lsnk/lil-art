@@ -203,6 +203,14 @@ private struct TranslationSettings: View {
             Text(translator.endpoint).font(.mono(10)).foregroundStyle(P.muted)
           }
         }
+        if translator.runtime == .omlx {
+          LilSettingRow(
+            title: "Освобождать память на время генерации",
+            note: "Перед картинкой или видео модель выгружается из памяти, после — возвращается"
+          ) {
+            LilSwitch(isOn: $translator.freeForPictures)
+          }
+        }
         LilSettingRow(title: "Модель", note: translator.endpointStatus.isEmpty ? nil : translator.endpointStatus) {
           HStack(spacing: 8) {
             if translator.models.isEmpty {

@@ -95,6 +95,10 @@ final class Translator: ObservableObject {
       endpointStatus = ""
     }
   }
+  /// While pictures are made the language model is taken out of memory and put back after.
+  @Published var freeForPictures = true {
+    didSet { UserDefaults.standard.set(freeForPictures, forKey: "llm.freeForPictures") }
+  }
   @Published var models: [String] = []
   @Published var endpointStatus = ""
   @Published var checking = false
@@ -168,6 +172,7 @@ final class Translator: ObservableObject {
     if let raw = d.string(forKey: "llm.runtime"), let r = Runtime(rawValue: raw) { runtime = r }
     if let u = d.string(forKey: "llm.endpoint"), !u.isEmpty { endpoint = u }
     customModel = d.string(forKey: "llm.model") ?? ""
+    if d.object(forKey: "llm.freeForPictures") != nil { freeForPictures = d.bool(forKey: "llm.freeForPictures") }
   }
 
   var modelAvailable: Bool { SystemLanguageModel.default.isAvailable }
@@ -499,7 +504,7 @@ final class Translator: ObservableObject {
     endpointStatus = "проверяю"
     let started = Date()
     if let reply = await chat(
-      system: "Reply with the single word: ok", user: "ping", timeout: 20)
+      system: "Reply with the single word: ok", user: "ping", timeout: 90)
     {
       let secs = Date().timeIntervalSince(started)
       endpointStatus = String(
@@ -509,6 +514,84 @@ final class Translator: ObservableObject {
       endpointStatus = "не отвечает"
     }
     checking = false
+  }
+
+  // MARK: memory while pictures are made
+
+  /// What was taken out of memory for a picture run. Kept in the defaults, so a quit or a crash
+  /// halfway through a run does not forget what to bring back.
+  private var released: [String] {
+    get { UserDefaults.standard.stringArray(forKey: "llm.released") ?? [] }
+    set { UserDefaults.standard.set(newValue, forKey: "llm.released") }
+  }
+  private var restoring: Task<Void, Never>?
+
+  /// oMLX keeps its own controls under /admin/api on the same host and port as the chat.
+  /// Nothing else (ollama, LM Studio, a typed address) is touched.
+  private func admin(_ path: String, post: Bool = false, timeout: TimeInterval = 10) async -> Data? {
+    guard runtime == .omlx, var parts = URLComponents(string: endpoint) else { return nil }
+    parts.percentEncodedPath = "/admin/api/" + path
+    parts.query = nil
+    guard let url = parts.url else { return nil }
+    var request = URLRequest(url: url, timeoutInterval: timeout)
+    request.httpMethod = post ? "POST" : "GET"
+    guard let (data, response) = try? await URLSession.shared.data(for: request),
+      let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode)
+    else { return nil }
+    return data
+  }
+
+  private static func pathPart(_ id: String) -> String {
+    let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~"))
+    return id.addingPercentEncoding(withAllowedCharacters: allowed) ?? id
+  }
+
+  private func object(_ data: Data?) -> [String: Any]? {
+    data.flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+  }
+
+  /// Takes every language model out of oMLX's memory before a picture is drawn: a nine-billion
+  /// parameter model holds about ten gigabytes the picture model needs. The server stays up and
+  /// loads a model again by itself on the next request. A model in the middle of an answer, or
+  /// one pinned by hand, is left alone.
+  func releaseLocalModels() async {
+    guard freeForPictures, runtime == .omlx else { return }
+    await restoring?.value
+    restoring = nil
+    guard let list = object(await admin("models"))?["models"] as? [[String: Any]] else { return }
+    var busy = Set<String>()
+    if let active = (object(await admin("activity"))?["active_models"] as? [String: Any])?["models"]
+      as? [[String: Any]]
+    {
+      for m in active {
+        let load = (m["active_requests"] as? Int ?? 0) + (m["waiting_requests"] as? Int ?? 0)
+        if load > 0, let id = m["id"] as? String { busy.insert(id) }
+      }
+    }
+    let loaded = list.compactMap { m -> String? in
+      guard m["loaded"] as? Bool == true, m["pinned"] as? Bool != true else { return nil }
+      return (m["id"] as? String).flatMap { busy.contains($0) ? nil : $0 }
+    }
+    var freed: [String] = []
+    for id in loaded {
+      if await admin("models/\(Self.pathPart(id))/unload", post: true, timeout: 30) != nil {
+        freed.append(id)
+      }
+    }
+    if !freed.isEmpty { released = freed }
+  }
+
+  /// Puts back what `releaseLocalModels` took out, so the next translation or improvement does
+  /// not wait for a cold start. A new run that begins meanwhile waits for this to finish first.
+  func restoreLocalModels() {
+    let ids = released
+    guard freeForPictures, runtime == .omlx, !ids.isEmpty else { return }
+    released = []
+    restoring = Task {
+      for id in ids {
+        _ = await admin("models/\(Self.pathPart(id))/load", post: true, timeout: 180)
+      }
+    }
   }
 
   // MARK: system translator

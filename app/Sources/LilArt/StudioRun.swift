@@ -238,6 +238,7 @@ extension Studio {
     stepText = ""
     livePreview = nil
     status = "отменено"
+    translator.restoreLocalModels()
   }
 
 
@@ -254,6 +255,7 @@ extension Studio {
         livePreview = nil
         work = nil
         queued = queue.count
+        translator.restoreLocalModels()
       }
     }
     while id == runID, !Task.isCancelled, !queue.isEmpty {
@@ -341,6 +343,7 @@ extension Studio {
     var request = job.request
     let text = await modelText(for: request.prompt)
     guard id == runID, !Task.isCancelled else { return true }
+    await translator.releaseLocalModels()
     guard let r = await open(request.model, id) else { return id != runID || Task.isCancelled }
     guard id == runID, !Task.isCancelled else { return true }
     if request.model == model { recommended = r }
@@ -398,6 +401,7 @@ extension Studio {
     var request = job.request
     let text = await modelText(for: request.prompt)
     guard id == runID, !Task.isCancelled else { return true }
+    await translator.releaseLocalModels()
     guard await open(request.model, id) != nil else { return id != runID || Task.isCancelled }
     guard id == runID, !Task.isCancelled else { return true }
     request.prompt = text + job.suffix
