@@ -206,7 +206,7 @@ private struct TranslationSettings: View {
         if translator.runtime == .omlx {
           LilSettingRow(
             title: "Освобождать память на время генерации",
-            note: "Перед картинкой или видео модель выгружается из памяти, после — возвращается"
+            note: "Перед картинкой или видео модель выгружается из памяти; при «Перевести» и «Улучшить» поднимается сама, а память у движка картинок освобождается"
           ) {
             LilSwitch(isOn: $translator.freeForPictures)
           }

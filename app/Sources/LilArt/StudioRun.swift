@@ -238,7 +238,6 @@ extension Studio {
     stepText = ""
     livePreview = nil
     status = "отменено"
-    translator.restoreLocalModels()
   }
 
 
@@ -255,7 +254,6 @@ extension Studio {
         livePreview = nil
         work = nil
         queued = queue.count
-        translator.restoreLocalModels()
       }
     }
     while id == runID, !Task.isCancelled, !queue.isEmpty {

@@ -20,21 +20,27 @@ extension Studio {
       return
     }
     Task {
-      let cap = MediaGenerationEnvironment.default.maxTotalWeightsCacheSize
-      MediaGenerationEnvironment.default.maxTotalWeightsCacheSize = 0
-      await engine.release()
-      MediaGenerationEnvironment.default.maxTotalWeightsCacheSize = cap
-      // The weights live in the engine, a separate program. Restarting it is the only sure
-      // way to hand that memory back.
-      if self.engineHost.running {
-        self.engineHost.stop()
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        self.engineHost.start(modelsDir: self.modelsDir)
-      }
+      await freeEngine()
       await MainActor.run {
         self.status = "выгружено"
         self.refreshMemory()
       }
+    }
+  }
+
+
+  /// Hands the engine's memory back and starts it again empty.
+  func freeEngine() async {
+    let cap = MediaGenerationEnvironment.default.maxTotalWeightsCacheSize
+    MediaGenerationEnvironment.default.maxTotalWeightsCacheSize = 0
+    await engine.release()
+    MediaGenerationEnvironment.default.maxTotalWeightsCacheSize = cap
+    // The weights live in the engine, a separate program. Restarting it is the only sure
+    // way to hand that memory back.
+    if engineHost.running {
+      engineHost.stop()
+      try? await Task.sleep(nanoseconds: 500_000_000)
+      engineHost.start(modelsDir: modelsDir)
     }
   }
 

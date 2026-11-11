@@ -401,7 +401,9 @@ final class Translator: ObservableObject {
     return cleaned.isEmpty ? nil : cleaned
   }
 
-  private func chat(system: String, user: String, timeout: TimeInterval) async -> String? {
+  private func chat(
+    system: String, user: String, timeout: TimeInterval, roomMade: Bool = false
+  ) async -> String? {
     guard var url = URL(string: endpoint) else { return nil }
     if !url.path.hasSuffix("/chat/completions") {
       url = url.appendingPathComponent("chat/completions")
@@ -423,7 +425,12 @@ final class Translator: ObservableObject {
     do {
       let (data, response) = try await URLSession.shared.data(for: request)
       if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-        endpointStatus = "сервер ответил \(http.statusCode)"
+        if http.statusCode == 507, !roomMade, runtime == .omlx, let makeRoom {
+          await makeRoom()
+          return await chat(system: system, user: user, timeout: timeout, roomMade: true)
+        }
+        endpointStatus = http.statusCode == 507
+          ? "в памяти нет места для модели: закройте лишнее" : "сервер ответил \(http.statusCode)"
         return nil
       }
       guard
@@ -518,14 +525,6 @@ final class Translator: ObservableObject {
 
   // MARK: memory while pictures are made
 
-  /// What was taken out of memory for a picture run. Kept in the defaults, so a quit or a crash
-  /// halfway through a run does not forget what to bring back.
-  private var released: [String] {
-    get { UserDefaults.standard.stringArray(forKey: "llm.released") ?? [] }
-    set { UserDefaults.standard.set(newValue, forKey: "llm.released") }
-  }
-  private var restoring: Task<Void, Never>?
-
   /// oMLX keeps its own controls under /admin/api on the same host and port as the chat.
   /// Nothing else (ollama, LM Studio, a typed address) is touched.
   private func admin(_ path: String, post: Bool = false, timeout: TimeInterval = 10) async -> Data? {
@@ -552,12 +551,11 @@ final class Translator: ObservableObject {
 
   /// Takes every language model out of oMLX's memory before a picture is drawn: a nine-billion
   /// parameter model holds about ten gigabytes the picture model needs. The server stays up and
-  /// loads a model again by itself on the next request. A model in the middle of an answer, or
-  /// one pinned by hand, is left alone.
+  /// loads a model again by itself on the next request (`chat` makes room for it first if the
+  /// engine still holds the memory). A model in the middle of an answer, or one pinned by hand,
+  /// is left alone.
   func releaseLocalModels() async {
     guard freeForPictures, runtime == .omlx else { return }
-    await restoring?.value
-    restoring = nil
     guard let list = object(await admin("models"))?["models"] as? [[String: Any]] else { return }
     var busy = Set<String>()
     if let active = (object(await admin("activity"))?["active_models"] as? [String: Any])?["models"]
@@ -572,27 +570,14 @@ final class Translator: ObservableObject {
       guard m["loaded"] as? Bool == true, m["pinned"] as? Bool != true else { return nil }
       return (m["id"] as? String).flatMap { busy.contains($0) ? nil : $0 }
     }
-    var freed: [String] = []
     for id in loaded {
-      if await admin("models/\(Self.pathPart(id))/unload", post: true, timeout: 30) != nil {
-        freed.append(id)
-      }
+      _ = await admin("models/\(Self.pathPart(id))/unload", post: true, timeout: 30)
     }
-    if !freed.isEmpty { released = freed }
   }
 
-  /// Puts back what `releaseLocalModels` took out, so the next translation or improvement does
-  /// not wait for a cold start. A new run that begins meanwhile waits for this to finish first.
-  func restoreLocalModels() {
-    let ids = released
-    guard freeForPictures, runtime == .omlx, !ids.isEmpty else { return }
-    released = []
-    restoring = Task {
-      for id in ids {
-        _ = await admin("models/\(Self.pathPart(id))/load", post: true, timeout: 180)
-      }
-    }
-  }
+  /// Hands memory back from the picture engine, set by the studio. Right after a run the engine
+  /// still holds its model, and a language model that is asked for then is refused with 507.
+  var makeRoom: (() async -> Void)?
 
   // MARK: system translator
 

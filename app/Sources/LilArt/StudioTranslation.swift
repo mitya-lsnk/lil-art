@@ -56,7 +56,7 @@ extension Studio {
   /// One translation with a ceiling on how long it may take. The original text comes back
   /// when it fails or runs out of time.
   func english(for text: String, improve: Bool = false) async -> String {
-    let out: String? = await withDeadline(improve ? 75 : 15, fallback: nil) { [translator] in
+    let out: String? = await withDeadline(improve ? 90 : (translator.engine == .local ? 60 : 15), fallback: nil) { [translator] in
       await translator.english(for: text, improve: improve)
     }
     guard let out else {

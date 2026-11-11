@@ -260,6 +260,12 @@ final class Studio: ObservableObject {
           actions: [.init("Модели…", .openModels)]))
     }
     translator.onProblem = { [weak self] problem in self?.report(problem) }
+    translator.makeRoom = { [weak self] in
+      guard let self, !self.busy else { return }
+      self.status = "освобождаю память для языковой модели"
+      await self.freeEngine()
+      self.refreshMemory()
+    }
     installKeyMonitor()
     Task { await CatalogCache.refreshIfStale() }
     Task { await ControlNets.refreshCatalog() }
