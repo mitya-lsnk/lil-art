@@ -24,12 +24,14 @@ struct PromptBox: View {
             Text("уйдёт: перевод").foregroundStyle(P.ink)
           } else if s.englishStale {
             Text("текст изменён — уйдёт как написано")
+          } else if s.showingEnglish, !hasEnglish {
+            Text("английский пуст — уйдёт русский")
           }
         }
         .font(.mono(9)).tracking(0.6).foregroundStyle(P.muted)
         .lineLimit(1).truncationMode(.tail).minimumScaleFactor(0.8)
         .frame(maxWidth: .infinity, alignment: .trailing)
-        if hasEnglish {
+        if hasEnglish || s.showingEnglish {
           Segmented(
             options: [(false, "ру"), (true, "en")],
             value: Binding(get: { s.showingEnglish }, set: { s.showingEnglish = $0 }))
@@ -39,7 +41,7 @@ struct PromptBox: View {
       .frame(height: 30)
 
       VStack(spacing: 0) {
-        if s.showingEnglish, hasEnglish {
+        if s.showingEnglish {
           // what the model will read; editable, so a clumsy translation can be put right
           PromptTextView(
             text: Binding(get: { s.englishPrompt }, set: { s.editEnglish($0) }), fontSize: 12,
