@@ -156,8 +156,7 @@ final class EngineHost: ObservableObject {
   private var cleanup: Task<Void, Never>?
 
   var binary: URL {
-    FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("lil-art/engine/gRPCServerCLI-macOS")
+    ProjectRoot.places.engineBinary
   }
   var installed: Bool { FileManager.default.fileExists(atPath: binary.path) }
   /// For the memory readout: the engine is a separate process with memory of its own.
@@ -315,6 +314,12 @@ final class EngineHost: ObservableObject {
   /// Returns at once; the engine appears a moment later, after any old copy has gone.
   func start(modelsDir: URL) {
     guard installed, process == nil, launching == nil else { return }
+    // The engine makes its folder when it is missing, which under /Volumes would be a fake
+    // folder on the Mac in place of the unplugged disk.
+    if let message = ModelsFolder.unavailableMessage(modelsDir) {
+      status = message
+      return
+    }
     // Shown as running right away so callers that look at `running` right after this call
     // keep waiting for the engine instead of concluding it never started.
     running = true
@@ -397,7 +402,7 @@ final class EngineHost: ObservableObject {
   }
 
   private static func exitMessage(code: Int32, signaled: Bool) -> String {
-    let hint = ", подробности в lil-art/engine.log"
+    let hint = ", подробности в engine.log в папке проекта"
     if signaled {
       if code == SIGKILL {
         return "система оборвала движок (сигнал 9), возможно не хватило памяти" + hint
@@ -409,8 +414,7 @@ final class EngineHost: ObservableObject {
 
   /// The engine's own output, kept where the person can find it when something goes wrong.
   private func openLog() -> FileHandle? {
-    let url = FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("lil-art/engine.log")
+    let url = ProjectRoot.places.engineLog
     let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
     let size = (attributes?[.size] as? NSNumber)?.intValue ?? 0
     // checked once per start, which is enough to keep it from growing without limit

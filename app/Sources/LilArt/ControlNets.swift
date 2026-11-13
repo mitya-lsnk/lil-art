@@ -25,8 +25,7 @@ struct ControlNetItem: Identifiable, Hashable {
 @MainActor
 enum ControlNets {
   static var cacheFile: URL {
-    FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("lil-art/cache/controlnets.json")
+    ProjectRoot.places.cache.appendingPathComponent("controlnets.json")
   }
 
   /// The engine's reference-picture adapters (IP-Adapter and kin) take the moodboard; the rest

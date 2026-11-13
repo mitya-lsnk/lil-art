@@ -88,7 +88,9 @@ final class TagIndex: @unchecked Sendable {
 
 
 let t0 = Date()
-let text = try! String(contentsOf: URL(fileURLWithPath: NSString(string: "~/lil-art/tags/danbooru.csv").expandingTildeInPath), encoding: .utf8)
+// the tag list: the path as the first argument, otherwise tags/danbooru.csv from the project folder
+let tagFile = CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "tags/danbooru.csv"
+let text = try! String(contentsOf: URL(fileURLWithPath: tagFile), encoding: .utf8)
 let index = TagIndex.parse(text)
 print(String(format: "разобрано тегов: %d за %.2f с", index.entries.count, Date().timeIntervalSince(t0)))
 for q in ["long h", "hair", "boobs", "1gi", "smil", "red e"] {

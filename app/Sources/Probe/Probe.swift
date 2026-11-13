@@ -26,8 +26,7 @@ let rawByLabel: [String: String] = [
 ]
 
 func familyForApp(_ file: String) -> String? {
-  let home = FileManager.default.homeDirectoryForCurrentUser
-  for path in [home.appendingPathComponent("lil-art/cache/models.json").path, "/tmp/dtmodels.json"] {
+  for path in [ProjectRoot.places.cache.appendingPathComponent("models.json").path, "/tmp/dtmodels.json"] {
     guard let data = FileManager.default.contents(atPath: path),
       let raw = try? JSONSerialization.jsonObject(with: data)
     else { continue }
@@ -54,8 +53,7 @@ struct Probe {
   }
 
   static func main() async {
-    let home = FileManager.default.homeDirectoryForCurrentUser
-    let models = home.appendingPathComponent("lil-art/models")
+    let models = ProjectRoot.places.models
     MediaGenerationEnvironment.default.externalUrls = [models]
 
     // --families: what the app will use as the fallback family for each installed model
@@ -186,7 +184,7 @@ struct Probe {
         }
       }
       let dt = Date().timeIntervalSince(t0)
-      let file = home.appendingPathComponent("lil-art/\(out).png")
+      let file = ProjectRoot.places.root.appendingPathComponent("\(out).png")
       try results[0].write(to: file, type: UTType.png)
       print(String(format: "OK · %.1f с · шагов %d · превью %d", dt, box.lastStep, box.previews))
       print("файл: \(file.path)")

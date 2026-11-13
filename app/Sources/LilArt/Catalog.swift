@@ -214,6 +214,12 @@ final class Catalog: ObservableObject {
       onDone(false)
       return
     }
+    // a disk that is not plugged in is not a reason to fetch the model again
+    if let message = ModelsFolder.unavailableMessage(modelsDir) {
+      note = message
+      onDone(false)
+      return
+    }
     downloading = model.file
     progress = 0
     progressText = "начинаю"
@@ -274,8 +280,7 @@ final class Catalog: ObservableObject {
 /// "krea_2") is exactly what the LoRA importer needs when it cannot recognise a file.
 enum CatalogCache {
   static var file: URL {
-    FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("lil-art/cache/models.json")
+    ProjectRoot.places.cache.appendingPathComponent("models.json")
   }
 
   private static let lock = NSLock()

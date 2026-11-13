@@ -109,8 +109,7 @@ enum ImportRunner {
   static var modelsDir: URL { ModelsFolder.url }
 
   static var tool: URL {
-    FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("lil-art/engine/draw-things-cli")
+    ProjectRoot.places.drawThingsCLI
   }
 
   // MARK: checkpoints
@@ -704,7 +703,7 @@ enum ImportRunner {
   }
 
   static var importCache: URL {
-    FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("lil-art/cache/import")
+    ProjectRoot.places.cache.appendingPathComponent("import")
   }
 
   /// Unpacked copies and download files are removed when their step ends. A crash or a forced

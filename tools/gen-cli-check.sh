@@ -2,12 +2,12 @@
 # Снимок поведения командной строки lilart-gen без видеокарты: справка, ошибки неверных флагов,
 # сухой прогон (--dry-run), пересборка листа. Снять до правки кода, сравнить после:
 #
-#   gen-cli-check.sh record    записать ~/lil-art/golden/cli-base.txt
+#   gen-cli-check.sh record    записать golden/cli-base.txt в папке проекта
 #   gen-cli-check.sh check     прогнать снова и показать расхождения с записанным
 #
 # Движок не запускается и модели не грузятся; каждый --dry-run ждёт ответа движка до 5 секунд.
 set -uo pipefail
-ROOT="$HOME/lil-art"
+ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 GEN="${GEN:-$ROOT/tools/lilart-gen}"
 MODE="${1:-}"
 case "$MODE" in record|check) ;; *) echo "использование: gen-cli-check.sh record|check"; exit 2 ;; esac

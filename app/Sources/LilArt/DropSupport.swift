@@ -9,7 +9,7 @@ struct DroppedPicture: Transferable {
   let fileURL: URL?
 
   static var folder: URL {
-    FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("lil-art/cache/dropped")
+    ProjectRoot.places.cache.appendingPathComponent("dropped")
   }
 
   private static func keep(_ data: Data, ext: String) throws -> URL {

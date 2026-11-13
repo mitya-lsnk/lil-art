@@ -3,10 +3,11 @@
 Программа делает картинки тем же движком, что и lil art, но без окна. Нужна, чтобы
 Claude (или любой скрипт) мог сам нагенерировать арт пачкой.
 
-- Программа: `~/lil-art/tools/lilart-gen`
-- Исходник: `~/lil-art/app/Sources/LilArtGen/LilArtGen.swift`
-- Собрать заново: `~/lil-art/build.sh gen` (только она, приложение не трогает);
-  `~/lil-art/build.sh` без слов собирает и приложение, и её.
+- Папка проекта: `~/AI dev/lil/lil-art`. Её настоящий путь `build.sh` вшивает в Info.plist программы (`LilRoot`), а эта утилита находит проект по своему месту в `tools/`; ярлык в домашней папке не нужен.
+- Программа: `~/AI dev/lil/lil-art/tools/lilart-gen`
+- Исходник: `~/AI dev/lil/lil-art/app/Sources/LilArtGen/LilArtGen.swift`
+- Собрать заново: `~/AI dev/lil/lil-art/build.sh gen` (только она, приложение не трогает);
+  `~/AI dev/lil/lil-art/build.sh` без слов собирает и приложение, и её.
 
 ## Главное правило про память
 
@@ -18,11 +19,11 @@ Claude (или любой скрипт) мог сам нагенерироват
 ## Одна картинка
 
 ```bash
-~/lil-art/tools/lilart-gen --prompt "a red apple on a wooden table, studio light" --out ~/Desktop/apple.png
+~/"AI dev/lil/lil-art"/tools/lilart-gen --prompt "a red apple on a wooden table, studio light" --out ~/Desktop/apple.png
 ```
 
 ```bash
-~/lil-art/tools/lilart-gen --prompt-file prompt.txt --out out/hero.png --seed 42 --width 1024 --height 1536
+~/"AI dev/lil/lil-art"/tools/lilart-gen --prompt-file prompt.txt --out out/hero.png --seed 42 --width 1024 --height 1536
 ```
 
 Флаги:
@@ -31,7 +32,7 @@ Claude (или любой скрипт) мог сам нагенерироват
 |---|---|---|
 | `--prompt "…"` / `--prompt-file файл` | текст (одно из двух) | — |
 | `--out путь.png` | куда сохранить | `./lilart_<seed>.png` |
-| `--model файл.ckpt` | модель из `~/lil-art/models` | `krea_2_turbo_q8p.ckpt` |
+| `--model файл.ckpt` | модель из папки моделей | `krea_2_turbo_q8p.ckpt` |
 | `--width`, `--height` | размер, **только кратно 64** (64…4096) | 1024 × 1024 |
 | `--seed N` | сид 0…4294967295 | случайный, всегда печатается |
 | `--steps N`, `--cfg X`, `--sampler имя` | поверх рекомендации модели | рекомендация модели |
@@ -49,7 +50,7 @@ Turbo это 8 шагов, CFG 1, Euler A Trailing (проверено). Сэм�
 ## Правка картинки (снимок + маска)
 
 ```bash
-~/lil-art/tools/lilart-gen --model flux_2_klein_4b_q8p.ckpt --image in.png --mask mask.png \
+~/"AI dev/lil/lil-art"/tools/lilart-gen --model flux_2_klein_4b_q8p.ckpt --image in.png --mask mask.png \
   --width 1024 --height 704 --prompt "Remove the red car, show the empty street" --out out.png --count 2
 ```
 
@@ -71,7 +72,7 @@ Turbo это 8 шагов, CFG 1, Euler A Trailing (проверено). Сэм�
 ## Пачка
 
 ```bash
-~/lil-art/tools/lilart-gen --jobs jobs.json --out-dir ~/memegame/art/_gen/round1 --limit 80
+~/"AI dev/lil/lil-art"/tools/lilart-gen --jobs jobs.json --out-dir ~/memegame/art/_gen/round1 --limit 80
 ```
 
 `jobs.json` — список заданий:
@@ -98,7 +99,7 @@ Turbo это 8 шагов, CFG 1, Euler A Trailing (проверено). Сэм�
 Перед дорогим прогоном полезно посмотреть план, не тратя ни одной генерации:
 
 ```bash
-~/lil-art/tools/lilart-gen --jobs jobs.json --out-dir ~/memegame/art/_gen/round1 --limit 80 --dry-run
+~/"AI dev/lil/lil-art"/tools/lilart-gen --jobs jobs.json --out-dir ~/memegame/art/_gen/round1 --limit 80 --dry-run
 ```
 
 ### Где лежат файлы
@@ -119,7 +120,7 @@ Turbo это 8 шагов, CFG 1, Euler A Trailing (проверено). Сэм�
 Удалили неудачные варианты или переименовали — лист собирается заново без генерации:
 
 ```bash
-~/lil-art/tools/lilart-gen --sheet ~/memegame/art/_gen/round1/hero_idle
+~/"AI dev/lil/lil-art"/tools/lilart-gen --sheet ~/memegame/art/_gen/round1/hero_idle
 ```
 
 ### Что печатается
@@ -138,7 +139,7 @@ DONE    ok=11  failed=1  attempts=12  limit=80
 
 Код выхода: `0` — всё получилось; `3` — были неудачные картинки или пачка остановлена
 (причина — в строках `FAIL` и в stderr); `1` — ничего не начато (ошибка в флагах, в
-jobs.json, такой модели нет в `~/lil-art/models`).
+jobs.json, такой модели нет в папке моделей).
 
 Ошибка одной картинки не останавливает пачку. Но **три ошибки подряд** останавливают её:
 это значит, что сломалось что-то общее, и дальше лимит тратился бы впустую. Если движок
@@ -162,12 +163,12 @@ jobs.json, такой модели нет в `~/lil-art/models`).
 3. Не отвечает, но процесс движка уже есть (например, lil art как раз его запускает) —
    ждёт до 2 минут, пока он ответит. Второй копии не запускает.
 4. Движка нет совсем — запускает его сама, ровно как lil art:
-   `~/lil-art/engine/gRPCServerCLI-macOS ~/lil-art/models --address 127.0.0.1 --port 7859 --weights-cache <как в настройках lil art>`.
+   `<папка проекта>/engine/gRPCServerCLI-macOS <папка моделей> --address 127.0.0.1 --port 7859 --weights-cache <как в настройках lil art>`.
    Только `127.0.0.1`, никогда `0.0.0.0` — снаружи машины движок не виден. Его вывод
-   дописывается в `~/lil-art/engine.log`. Ждёт до 2 минут, пока он ответит.
+   дописывается в `engine.log` в папке проекта. Ждёт до 2 минут, пока он ответит.
 5. В конце (и при Ctrl-C / `kill`) останавливает движок, **только если запускала его сама**.
    После `kill -9` движок может остаться висеть в памяти — lil art убирает такой при
-   следующем запуске, или вручную: `pkill -f lil-art/engine/gRPCServerCLI-macOS`.
+   следующем запуске, или вручную: `pkill -f gRPCServerCLI-macOS`.
 
 Чего не делать во время пачки: открывать или закрывать lil art. Открытие lil art
 перезапускает движок (приложение гасит любой чужой экземпляр), и текущая картинка
@@ -180,8 +181,8 @@ jobs.json, такой модели нет в `~/lil-art/models`).
 можно перевести в формат движка и отсюда — это та же конвертация, что в окне «Модели»:
 
 ```
-~/lil-art/tools/lilart-gen --check-part файл.safetensors    # только сверить слои, ничего не пишет
-~/lil-art/tools/lilart-gen --import-part файл.safetensors   # сверить и положить в папку моделей
+~/"AI dev/lil/lil-art"/tools/lilart-gen --check-part файл.safetensors    # только сверить слои, ничего не пишет
+~/"AI dev/lil/lil-art"/tools/lilart-gen --import-part файл.safetensors   # сверить и положить в папку моделей
 ```
 
 `--check-part` печатает по строке на каждую подходящую по размерам стандартную часть:
@@ -191,12 +192,12 @@ jobs.json, такой модели нет в `~/lil-art/models`).
 
 Сверка занимает секунды. Запись крупного кодировщика в 8 бит (q8p) — около 20 минут на всех
 ядрах; VAE — секунды. Новая часть выбирается в lil art: PRO у модели → «VAE» /
-«текстовый кодировщик». Список добавленных частей — `~/lil-art/models/lil-parts.json`.
+«текстовый кодировщик». Список добавленных частей — `lil-parts.json` в папке моделей.
 
 ## Сжать модель и сверить слои (без движка и без генерации)
 
 ```
-~/lil-art/tools/lilart-gen --squeeze модель.ckpt --plan 4/8 --out копия.ckpt
+~/"AI dev/lil/lil-art"/tools/lilart-gen --squeeze модель.ckpt --plan 4/8 --out копия.ckpt
 ```
 
 `--plan основная/важные` — биты: 8, 6, 5, 4, 3. Важные — модуляция и по 2 первых и последних блока.

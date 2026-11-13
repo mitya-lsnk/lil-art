@@ -34,11 +34,8 @@ final class PromptAssist: ObservableObject {
   /// `lower` is stored once: lowercasing every phrase on every keystroke was the hot spot.
   private var phrases: [(text: String, lower: String)] = []
 
-  private var root: URL {
-    FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("lil-art")
-  }
-  private var tagsDir: URL { root.appendingPathComponent("tags") }
-  private var historyFile: URL { root.appendingPathComponent("history.json") }
+  private var tagsDir: URL { ProjectRoot.places.tags }
+  private var historyFile: URL { ProjectRoot.places.history }
 
   init() {
     let d = UserDefaults.standard
@@ -124,7 +121,8 @@ final class PromptAssist: ObservableObject {
     prompts.insert(text, at: 0)
     if prompts.count > 300 { prompts.removeLast(prompts.count - 300) }
     rebuildPhrases()
-    try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    try? FileManager.default.createDirectory(
+      at: ProjectRoot.places.root, withIntermediateDirectories: true)
     if let data = try? JSONEncoder().encode(prompts) {
       try? data.write(to: historyFile, options: .atomic)
     }

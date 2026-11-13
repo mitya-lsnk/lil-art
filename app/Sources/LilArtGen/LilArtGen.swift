@@ -12,9 +12,9 @@ import UniformTypeIdentifiers
 /// It never loads a model itself: every picture is asked of the engine that lil art already
 /// runs on 127.0.0.1, so the weights sit in memory once. Only when nothing answers there does
 /// it start that same engine, the same way the app does, and stop it again on the way out.
-/// Full usage: ~/lil-art/tools/GEN.md.
+/// Full usage: tools/GEN.md in the project folder.
 let usage = """
-  lilart-gen — картинки через движок lil art, без окна. Подробно: ~/lil-art/tools/GEN.md
+  lilart-gen — картинки через движок lil art, без окна. Подробно: tools/GEN.md в папке проекта
 
   Одна картинка:
     lilart-gen --prompt "текст" --out путь.png [--seed N] [--width 1024 --height 1024]
@@ -68,10 +68,9 @@ let usage = """
   """
 
 let defaultModel = "krea_2_turbo_q8p.ckpt"
-let home = FileManager.default.homeDirectoryForCurrentUser
 let modelsDir = ModelsFolder.url
-let engineBinary = home.appendingPathComponent("lil-art/engine/gRPCServerCLI-macOS")
-let engineLog = home.appendingPathComponent("lil-art/engine.log")
+let engineBinary = ProjectRoot.places.engineBinary
+let engineLog = ProjectRoot.places.engineLog
 /// lil art's own settings, so a started engine gets the same port and weights cache.
 let appDefaults = UserDefaults(suiteName: "com.lil.art")
 
@@ -129,7 +128,7 @@ final class Engine: @unchecked Sendable {
       say("движок, запущенный мной, не отвечает — жду")
       if waitReady(seconds: 120, watching: mine) { return }
       stopIfOurs()
-      throw Fail("движок перестал отвечать, см. ~/lil-art/engine.log")
+      throw Fail("движок перестал отвечать, см. \(engineLog.path)")
     }
     let others = Engine.pids(running: engineBinary.path).subtracting(ownProcess.map { [$0.processIdentifier] } ?? [])
     if !others.isEmpty {
@@ -139,7 +138,7 @@ final class Engine: @unchecked Sendable {
       if waitReady(seconds: 120, watching: nil) { return }
       throw Fail(
         "движок запущен, но порт \(port) не отвечает 2 минуты. Второй копией не запускаю, чтобы не грузить модель дважды. "
-          + "Проверьте lil art или ~/lil-art/engine.log")
+          + "Проверьте lil art или \(engineLog.path)")
     }
     guard FileManager.default.isExecutableFile(atPath: engineBinary.path) else {
       throw Fail("движка нет: \(engineBinary.path). Его скачивает lil art при первом запуске")
@@ -148,12 +147,12 @@ final class Engine: @unchecked Sendable {
     let attempt = starts
     starts += 1
     lock.unlock()
-    guard attempt < 3 else { throw Fail("движок уже трижды поднимался и падал — останавливаюсь, см. ~/lil-art/engine.log") }
+    guard attempt < 3 else { throw Fail("движок уже трижды поднимался и падал — останавливаюсь, см. \(engineLog.path)") }
     let p = try launch()
     say("запустил движок сам (pid \(p.processIdentifier)), порт \(port); остановлю его в конце")
     guard waitReady(seconds: 120, watching: p) else {
       stopIfOurs()
-      throw Fail("движок не ответил за 2 минуты, см. ~/lil-art/engine.log")
+      throw Fail("движок не ответил за 2 минуты, см. \(engineLog.path)")
     }
     say("движок готов")
   }
@@ -165,6 +164,8 @@ final class Engine: @unchecked Sendable {
   }
 
   private func launch() throws -> Process {
+    // the engine would make a missing folder itself, a fake one on the Mac where a disk should be
+    if let message = ModelsFolder.unavailableMessage(modelsDir) { throw Fail(message) }
     let p = Process()
     p.executableURL = engineBinary
     // Without --address the engine listens on every network interface, i.e. the whole Wi-Fi.
@@ -193,7 +194,7 @@ final class Engine: @unchecked Sendable {
     while Date() < deadline {
       if answering() { return true }
       if let p, !p.isRunning {
-        say("движок завершился сам (код \(p.terminationStatus)), см. ~/lil-art/engine.log")
+        say("движок завершился сам (код \(p.terminationStatus)), см. \(engineLog.path)")
         return false
       }
       usleep(500_000)
@@ -673,7 +674,7 @@ struct LilArtGen {
 
   /// The same pairing and conversion the models window runs on a dropped file; no engine.
   static func runPart(_ source: URL, checkOnly: Bool) -> Never {
-    let catalog = home.appendingPathComponent("lil-art/cache/models.json")
+    let catalog = ProjectRoot.places.cache.appendingPathComponent("models.json")
     let started = Date()
     let progress = progressPrinter(every: 5)
     do {
@@ -704,7 +705,7 @@ struct LilArtGen {
 
   /// The family decides what stays at 16 bits; custom.json or the catalog knows it.
   static func familyOfModel(named file: String) -> String {
-    for url in [modelsDir.appendingPathComponent("custom.json"), home.appendingPathComponent("lil-art/cache/models.json")] {
+    for url in [modelsDir.appendingPathComponent("custom.json"), ProjectRoot.places.cache.appendingPathComponent("models.json")] {
       guard let data = try? Data(contentsOf: url), let raw = try? JSONSerialization.jsonObject(with: data)
       else { continue }
       let items = (raw as? [[String: Any]]) ?? ((raw as? [String: Any])?["models"] as? [[String: Any]]) ?? []

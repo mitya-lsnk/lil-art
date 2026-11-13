@@ -209,9 +209,7 @@ final class Studio: ObservableObject {
   var engineBridge: AnyCancellable?
   var assistBridge: AnyCancellable?
 
-  var outDir: URL {
-    FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("lil-art/out")
-  }
+  var outDir: URL { ProjectRoot.places.out }
 
   init() {
     let models = ModelsFolder.url

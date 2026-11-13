@@ -49,8 +49,7 @@ extension Studio {
       rgb[i * 3 + 1] = out[i]
       rgb[i * 3 + 2] = out[i]
     }
-    let dir = FileManager.default.homeDirectoryForCurrentUser
-      .appendingPathComponent("lil-art/cache/masks")
+    let dir = ProjectRoot.places.cache.appendingPathComponent("masks")
     try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     // old masks are only ever read by the run they were made for
     if let old = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) {

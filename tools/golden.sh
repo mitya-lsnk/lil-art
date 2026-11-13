@@ -1,8 +1,8 @@
 #!/bin/bash
 # Эталонные картинки lil art: снять один раз до рефакторинга и потом сравнивать.
 #
-#   golden.sh record    нарисовать эталоны в ~/lil-art/golden/base (закрыв lil art!)
-#   golden.sh check     нарисовать заново в ~/lil-art/golden/now и сравнить с эталонами
+#   golden.sh record    нарисовать эталоны в golden/base в папке проекта (закрыв lil art!)
+#   golden.sh check     нарисовать заново в golden/now и сравнить с эталонами
 #
 # Картинки рисует tools/lilart-gen: тот же движок, что и в приложении. Один и тот же сид движок
 # повторяет не до последнего бита (отличие в среднем 0.001–0.03 из 255), поэтому сравнение
@@ -10,7 +10,7 @@
 # Поэтому эталоны привязаны к версии движка: после его обновления снять заново.
 set -euo pipefail
 
-ROOT="$HOME/lil-art"
+ROOT="$(cd "$(dirname "$0")/.." && pwd -P)"
 GEN="$ROOT/tools/lilart-gen"
 HERE="$ROOT/tools"
 MODE="${1:-}"

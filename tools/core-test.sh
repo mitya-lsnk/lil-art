@@ -4,7 +4,7 @@
 # поэтому скрипт повторяет до четырёх раз.
 #   core-test.sh            прогнать тесты
 #   core-test.sh coverage   то же и с покрытием
-cd "$HOME/lil-art/app/Core"
+cd "$(dirname "$0")/../app/Core"
 flags=()
 [ "${1:-}" = coverage ] && flags=(--enable-code-coverage)
 # a failed attempt that only says the plugin was not found is repeated (up to four times)

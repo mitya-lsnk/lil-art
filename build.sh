@@ -1,12 +1,12 @@
 #!/bin/bash
-# Builds "lil art.app" from ~/lil-art/app/Sources/LilArt and the command-line generator
-# ~/lil-art/tools/lilart-gen from ~/lil-art/app/Sources/LilArtGen (see tools/GEN.md).
+# Builds "lil art.app" from app/Sources/LilArt and the command-line generator
+# tools/lilart-gen from app/Sources/LilArtGen, both inside the project folder (see tools/GEN.md).
 #
 #   build.sh        both
 #   build.sh app    only the app
 #   build.sh gen    only the generator (leaves a running app's bundle alone)
 #
-# Everything lives under ~/lil-art/build so a cleared temp directory never costs us
+# Everything lives under build/ in the project folder so a cleared temp directory never costs us
 # the 40-minute engine build again. Safe to re-run: the clone, the patch and the
 # extra package targets are all idempotent.
 set -euo pipefail
@@ -17,7 +17,10 @@ case "$WHAT" in
   *) echo "использование: build.sh [all|app|gen]"; exit 2 ;;
 esac
 
-ROOT="$HOME/lil-art"
+# The project is wherever this script lies, as the real path with no links: it is never assumed
+# to be under $HOME. The program gets it built into its Info.plist (LilRoot); lilart-gen finds
+# it from its own place in tools/.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 WORK="$ROOT/build"
 SRC="$ROOT/app/Sources/LilArt"
 GEN_SRC="$ROOT/app/Sources/LilArtGen"
@@ -83,7 +86,7 @@ mkdir -p Sources/LilArtGen
 rm -f Sources/LilArtGen/*.swift
 cp "$GEN_SRC"/*.swift Sources/LilArtGen/
 cp "$SRC/TensorImage.swift" "$SRC/ModelParts.swift" "$SRC/WeightCompressor.swift" Sources/LilArtGen/
-cp "$CORE/ScaledCheckpoint.swift" "$CORE/Storage.swift" "$CORE/GenArguments.swift" "$CORE/GenCommand.swift" Sources/LilArtGen/
+cp "$CORE/ScaledCheckpoint.swift" "$CORE/Storage.swift" "$CORE/ProjectRoot.swift" "$CORE/GenArguments.swift" "$CORE/GenCommand.swift" Sources/LilArtGen/
 
 echo "==> поднимаю движок до свежей версии"
 python3 - <<'PYEOF'
@@ -345,8 +348,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>lil art</string>
   <key>CFBundleIdentifier</key><string>com.lil.art</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.3.0</string>
-  <key>CFBundleVersion</key><string>3</string>
+  <key>CFBundleShortVersionString</key><string>0.4.0</string>
+  <key>CFBundleVersion</key><string>4</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>
@@ -355,6 +358,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </dict>
 PLIST
 echo '</plist>' >> "$APP/Contents/Info.plist"
+# the real path of the project, known only now (the file above is written without expanding anything)
+/usr/libexec/PlistBuddy -c "Add :LilRoot string $ROOT" "$APP/Contents/Info.plist"
 codesign --force --sign - --timestamp=none "$APP"
 codesign --verify "$APP"
 # the build's copy is not an app the Mac should know about
@@ -364,7 +369,7 @@ echo "==> ставлю в /Applications"
 if [ -e "$INSTALLED" ]; then
   # The old version is kept beside the build, never put in the Trash: a cleaner watching the
   # Trash (Pearcleaner) then removes the app's "leftovers" too — its settings and the
-  # ~/lil-art link to the models, which is how the models once went missing.
+  # links in the home folder, which is how the models once went missing.
   OLD="$ROOT/build.noindex/old"
   mkdir -p "$OLD"
   rm -rf "$OLD/lil art.app"
