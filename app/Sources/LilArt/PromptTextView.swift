@@ -55,6 +55,12 @@ struct PromptTextView: NSViewRepresentable {
     return scroll
   }
 
+  /// The field goes away with its undo steps (see `TextUndo`): left behind in the window's
+  /// history, they made ⌘Z call a freed object.
+  static func dismantleNSView(_ scroll: NSScrollView, coordinator: Coordinator) {
+    if let view = scroll.documentView as? NSTextView { TextUndo.forget(view) }
+  }
+
   /// The field takes the width it is offered and the height it is given, whatever the text in
   /// it measures: a long line must never widen the sidebar it sits in.
   func sizeThatFits(_ proposal: ProposedViewSize, nsView: NSScrollView, context: Context) -> CGSize? {
@@ -153,6 +159,13 @@ final class CompletingTextView: NSTextView {
   weak var coordinator: PromptTextView.Coordinator?
   /// Set once the arrows move through the open list; only then may Return or Tab take an entry.
   private var navigated = false
+
+  /// Whatever takes the field out of the window (SwiftUI dropping it, a folded section) takes its
+  /// undo steps out first, while the window and its history can still be reached.
+  override func viewWillMove(toWindow newWindow: NSWindow?) {
+    if newWindow == nil { TextUndo.forget(self) }
+    super.viewWillMove(toWindow: newWindow)
+  }
 
   override func complete(_ sender: Any?) {
     navigated = false
