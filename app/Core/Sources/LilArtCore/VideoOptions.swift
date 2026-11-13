@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(LilKitShared)
+  // LilStore is internal to the shared file: this package is only ever built to be tested.
+  // In the app the shared file lies in the same module, so no import is needed there.
+  @testable import LilKitShared
+#endif
 
 /// One offered clip size. The engine refuses anything that is not a multiple of 64 on
 /// both sides, so every number here is already on that grid — the sizes a video model was
@@ -259,16 +264,16 @@ enum SpeedPrefs {
   private static let key = "model.speed"
 
   static func stored(_ model: String) -> SpeedProfile? {
-    guard let all = UserDefaults.standard.dictionary(forKey: key) as? [String: String],
+    guard let all = LilStore.standard.dictionary(forKey: key) as? [String: String],
       let raw = all[model]
     else { return nil }
     return SpeedProfile(rawValue: raw)
   }
 
   static func save(_ profile: SpeedProfile?, for model: String) {
-    var all = (UserDefaults.standard.dictionary(forKey: key) as? [String: String]) ?? [:]
+    var all = (LilStore.standard.dictionary(forKey: key) as? [String: String]) ?? [:]
     all[model] = profile?.rawValue
-    UserDefaults.standard.set(all, forKey: key)
+    LilStore.standard.set(all, forKey: key)
   }
 
   static func profile(file: String, name: String) -> SpeedProfile {
@@ -303,13 +308,13 @@ enum ImageInputPrefs {
   private static let key = "model.takesImage"
 
   static func stored(_ model: String) -> Bool? {
-    (UserDefaults.standard.dictionary(forKey: key) as? [String: Bool])?[model]
+    (LilStore.standard.dictionary(forKey: key) as? [String: Bool])?[model]
   }
 
   static func save(_ value: Bool?, for model: String) {
-    var all = (UserDefaults.standard.dictionary(forKey: key) as? [String: Bool]) ?? [:]
+    var all = (LilStore.standard.dictionary(forKey: key) as? [String: Bool]) ?? [:]
     all[model] = value
-    UserDefaults.standard.set(all, forKey: key)
+    LilStore.standard.set(all, forKey: key)
   }
 }
 
@@ -318,15 +323,15 @@ enum RefinerPrefs {
   private static let key = "model.refiner"
 
   static func stored(_ model: String) -> (file: String, start: Double)? {
-    guard let all = UserDefaults.standard.dictionary(forKey: key) as? [String: [String: Any]],
+    guard let all = LilStore.standard.dictionary(forKey: key) as? [String: [String: Any]],
       let mine = all[model], let file = mine["file"] as? String
     else { return nil }
     return (file, (mine["start"] as? Double) ?? 0.1)
   }
 
   static func save(_ file: String, start: Double, for model: String) {
-    var all = (UserDefaults.standard.dictionary(forKey: key) as? [String: [String: Any]]) ?? [:]
+    var all = (LilStore.standard.dictionary(forKey: key) as? [String: [String: Any]]) ?? [:]
     all[model] = ["file": file, "start": start]
-    UserDefaults.standard.set(all, forKey: key)
+    LilStore.standard.set(all, forKey: key)
   }
 }

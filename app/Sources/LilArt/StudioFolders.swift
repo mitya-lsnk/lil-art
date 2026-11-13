@@ -48,7 +48,7 @@ extension Studio {
   func setCache(_ gb: Double) {
     cacheGB = gb
     MediaGenerationEnvironment.default.maxTotalWeightsCacheSize = UInt64(gb * 1_073_741_824)
-    UserDefaults.standard.set(gb, forKey: "engine.cacheGB")
+    LilStore.standard.set(gb, forKey: "engine.cacheGB")
   }
 
 

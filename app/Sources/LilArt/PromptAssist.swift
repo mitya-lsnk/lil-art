@@ -21,10 +21,10 @@ final class PromptAssist: ObservableObject {
   }
 
   @Published var spellcheck = true {
-    didSet { UserDefaults.standard.set(spellcheck, forKey: "assist.spellcheck") }
+    didSet { LilStore.standard.set(spellcheck, forKey: "assist.spellcheck") }
   }
   @Published var useHistory = true {
-    didSet { UserDefaults.standard.set(useHistory, forKey: "assist.history") }
+    didSet { LilStore.standard.set(useHistory, forKey: "assist.history") }
   }
   @Published private(set) var enabled: Set<Source> = [.danbooru]
   @Published private(set) var status: [Source: String] = [:]
@@ -38,7 +38,7 @@ final class PromptAssist: ObservableObject {
   private var historyFile: URL { ProjectRoot.places.history }
 
   init() {
-    let d = UserDefaults.standard
+    let d = LilStore.standard
     if d.object(forKey: "assist.spellcheck") != nil { spellcheck = d.bool(forKey: "assist.spellcheck") }
     if d.object(forKey: "assist.history") != nil { useHistory = d.bool(forKey: "assist.history") }
     if let saved = d.array(forKey: "assist.sources") as? [String] {
@@ -66,7 +66,7 @@ final class PromptAssist: ObservableObject {
       indexes[source] = nil  // no reason to keep a hundred thousand tags in memory
       status[source] = nil
     }
-    UserDefaults.standard.set(enabled.map(\.rawValue), forKey: "assist.sources")
+    LilStore.standard.set(enabled.map(\.rawValue), forKey: "assist.sources")
   }
 
   private func ensure(_ source: Source) {

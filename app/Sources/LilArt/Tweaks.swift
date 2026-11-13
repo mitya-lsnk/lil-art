@@ -249,20 +249,20 @@ enum TweakPrefs {
   private static let key = "model.tweaks"
 
   static func stored(_ model: String) -> [String: Double] {
-    (UserDefaults.standard.dictionary(forKey: key) as? [String: [String: Double]])?[model] ?? [:]
+    (LilStore.standard.dictionary(forKey: key) as? [String: [String: Double]])?[model] ?? [:]
   }
 
   static func save(_ value: Double?, _ id: String, for model: String) {
-    var all = (UserDefaults.standard.dictionary(forKey: key) as? [String: [String: Double]]) ?? [:]
+    var all = (LilStore.standard.dictionary(forKey: key) as? [String: [String: Double]]) ?? [:]
     var mine = all[model] ?? [:]
     mine[id] = value
     all[model] = mine.isEmpty ? nil : mine
-    UserDefaults.standard.set(all, forKey: key)
+    LilStore.standard.set(all, forKey: key)
   }
 
   static func clear(_ model: String) {
-    var all = (UserDefaults.standard.dictionary(forKey: key) as? [String: [String: Double]]) ?? [:]
+    var all = (LilStore.standard.dictionary(forKey: key) as? [String: [String: Double]]) ?? [:]
     all[model] = nil
-    UserDefaults.standard.set(all, forKey: key)
+    LilStore.standard.set(all, forKey: key)
   }
 }

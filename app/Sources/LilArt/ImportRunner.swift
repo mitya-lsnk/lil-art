@@ -484,7 +484,7 @@ enum ImportRunner {
   /// Kept in step with the engine: a different engine release means a fresh copy.
   private static func ensureTool(tag: String, report: @escaping Report) async throws {
     let fm = FileManager.default
-    let defaults = UserDefaults.standard
+    let defaults = LilStore.standard
     if fm.isExecutableFile(atPath: tool.path), tag.isEmpty || defaults.string(forKey: "cli.tag") == tag
     {
       return

@@ -157,11 +157,11 @@ final class ModelLibrary: ObservableObject {
   /// How every newly imported model is squeezed; nil: as it came (an 8-bit download back to
   /// 8 bits, a 16-bit one left alone).
   @Published var importPlan: CompressionPlan? = {
-    guard let data = UserDefaults.standard.data(forKey: "import.plan") else { return nil }
+    guard let data = LilStore.standard.data(forKey: "import.plan") else { return nil }
     return try? JSONDecoder().decode(CompressionPlan.self, from: data)
   }() {
     didSet {
-      UserDefaults.standard.set(importPlan.flatMap { try? JSONEncoder().encode($0) }, forKey: "import.plan")
+      LilStore.standard.set(importPlan.flatMap { try? JSONEncoder().encode($0) }, forKey: "import.plan")
     }
   }
   @Published var catalogTab = false
@@ -877,7 +877,7 @@ final class ModelLibrary: ObservableObject {
   // MARK: remembered failures
 
   private func failures() -> [String: String] {
-    UserDefaults.standard.dictionary(forKey: failedKey) as? [String: String] ?? [:]
+    LilStore.standard.dictionary(forKey: failedKey) as? [String: String] ?? [:]
   }
 
   /// A failure belongs to a file as it was: the same name with another size or date is a
@@ -899,7 +899,7 @@ final class ModelLibrary: ObservableObject {
     guard let stamp = Self.stamp(of: url) else { return }
     var all = failures().filter { !Self.isFailure(of: url, $0.key) }
     all[Self.failureKey(url, stamp)] = reason
-    UserDefaults.standard.set(all, forKey: failedKey)
+    LilStore.standard.set(all, forKey: failedKey)
   }
 
   /// Drops every remembered failure of this path, whatever the file looked like then; this
@@ -908,7 +908,7 @@ final class ModelLibrary: ObservableObject {
     let all = failures()
     let kept = all.filter { !Self.isFailure(of: url, $0.key) }
     guard kept.count != all.count else { return }
-    UserDefaults.standard.set(kept, forKey: failedKey)
+    LilStore.standard.set(kept, forKey: failedKey)
   }
 
   private static func isFailure(of url: URL, _ key: String) -> Bool {

@@ -4,6 +4,11 @@ import SwiftUI
 struct LilArtApp: App {
   @StateObject private var holder = StudioHolder()
 
+  init() {
+    // what the app downloads is kept in the project (data/cache), not in ~/Library/Caches
+    LilStore.useProjectCache()
+  }
+
   var body: some Scene {
     Window("lil art", id: "main") {
       if #available(macOS 26, *) {

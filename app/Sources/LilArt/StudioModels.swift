@@ -188,7 +188,7 @@ enum ModelPrefs {
   private static let key = "model.saved"
 
   static func load(_ model: String) -> Recommended? {
-    guard let all = UserDefaults.standard.dictionary(forKey: key),
+    guard let all = LilStore.standard.dictionary(forKey: key),
       let item = all[model] as? [String: Any],
       let steps = (item["steps"] as? NSNumber)?.intValue,
       let cfg = (item["cfg"] as? NSNumber)?.floatValue,
@@ -199,7 +199,7 @@ enum ModelPrefs {
   }
 
   static func save(_ settings: Recommended?, for model: String) {
-    var all = UserDefaults.standard.dictionary(forKey: key) ?? [:]
+    var all = LilStore.standard.dictionary(forKey: key) ?? [:]
     if let settings {
       all[model] = [
         "steps": settings.steps, "cfg": Double(settings.cfg), "sampler": Int(settings.sampler.rawValue),
@@ -207,7 +207,7 @@ enum ModelPrefs {
     } else {
       all[model] = nil
     }
-    UserDefaults.standard.set(all, forKey: key)
+    LilStore.standard.set(all, forKey: key)
   }
 }
 /// One picture, exactly as it will be asked of the engine.

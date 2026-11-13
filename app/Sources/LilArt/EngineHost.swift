@@ -126,7 +126,7 @@ private final class FileDownload: NSObject, URLSessionDownloadDelegate, @uncheck
 @MainActor
 final class EngineHost: ObservableObject {
   @Published var host = "127.0.0.1" {
-    didSet { UserDefaults.standard.set(host, forKey: "engine.host") }
+    didSet { LilStore.standard.set(host, forKey: "engine.host") }
   }
   @Published var port = 7859 {
     didSet {
@@ -135,11 +135,11 @@ final class EngineHost: ObservableObject {
         port = 7859
         return
       }
-      UserDefaults.standard.set(port, forKey: "engine.port")
+      LilStore.standard.set(port, forKey: "engine.port")
     }
   }
 
-  @Published var installedTag = UserDefaults.standard.string(forKey: "engine.tag") ?? ""
+  @Published var installedTag = LilStore.standard.string(forKey: "engine.tag") ?? ""
   @Published var latestTag = ""
   @Published var latestSizeMB = 0.0
   @Published var status = ""
@@ -173,7 +173,7 @@ final class EngineHost: ObservableObject {
     ) { [weak self] _ in
       MainActor.assumeIsolated { self?.process?.terminate() }
     }
-    let d = UserDefaults.standard
+    let d = LilStore.standard
     if let h = d.string(forKey: "engine.host"), !h.isEmpty { host = h }
     let p = d.integer(forKey: "engine.port")
     port = (1...65535).contains(p) ? p : 7859
@@ -292,7 +292,7 @@ final class EngineHost: ObservableObject {
         [.posixPermissions: 0o755], ofItemAtPath: binary.path)
       progress = 1
       installedTag = latestTag
-      UserDefaults.standard.set(latestTag, forKey: "engine.tag")
+      LilStore.standard.set(latestTag, forKey: "engine.tag")
       status = "поставлен \(latestTag)"
     } catch is CancellationError {
       status = "скачивание прервано"
@@ -344,7 +344,7 @@ final class EngineHost: ObservableObject {
     // The engine binds to every network interface unless told otherwise, which would let
     // anyone on the same Wi-Fi use this Mac's GPU without a password.
     var arguments = [modelsDir.path, "--address", "127.0.0.1", "--port", String(port)]
-    let cache = Int(UserDefaults.standard.double(forKey: "engine.cacheGB").rounded())
+    let cache = Int(LilStore.standard.double(forKey: "engine.cacheGB").rounded())
     if cache > 0 { arguments += ["--weights-cache", String(cache)] }
     p.arguments = arguments
     let log = openLog()

@@ -75,21 +75,21 @@ final class Translator: ObservableObject {
 
   /// Google by default: it translates best. Without a key the Apple translator steps in.
   @Published var engine: Engine = .google {
-    didSet { UserDefaults.standard.set(engine.rawValue, forKey: "llm.engine") }
+    didSet { LilStore.standard.set(engine.rawValue, forKey: "llm.engine") }
   }
   @Published var improver: Improver = .apple {
-    didSet { UserDefaults.standard.set(improver.rawValue, forKey: "llm.improver") }
+    didSet { LilStore.standard.set(improver.rawValue, forKey: "llm.improver") }
   }
   /// Any OpenAI-compatible endpoint: mlx_lm.server, LM Studio, Ollama, llama.cpp.
   @Published var endpoint = "http://127.0.0.1:8080/v1" {
-    didSet { UserDefaults.standard.set(endpoint, forKey: "llm.endpoint") }
+    didSet { LilStore.standard.set(endpoint, forKey: "llm.endpoint") }
   }
   @Published var customModel = "" {
-    didSet { UserDefaults.standard.set(customModel, forKey: "llm.model") }
+    didSet { LilStore.standard.set(customModel, forKey: "llm.model") }
   }
   @Published var runtime: Runtime = .ollama {
     didSet {
-      UserDefaults.standard.set(runtime.rawValue, forKey: "llm.runtime")
+      LilStore.standard.set(runtime.rawValue, forKey: "llm.runtime")
       if runtime != .manual { endpoint = runtime.endpoint }
       models = []
       endpointStatus = ""
@@ -97,7 +97,7 @@ final class Translator: ObservableObject {
   }
   /// While pictures are made the language model is taken out of memory and put back after.
   @Published var freeForPictures = true {
-    didSet { UserDefaults.standard.set(freeForPictures, forKey: "llm.freeForPictures") }
+    didSet { LilStore.standard.set(freeForPictures, forKey: "llm.freeForPictures") }
   }
   @Published var models: [String] = []
   @Published var endpointStatus = ""
@@ -110,7 +110,7 @@ final class Translator: ObservableObject {
   /// start of the word, so "лифчик" also covers «лифчике» and «лифчиками»; the English side may
   /// list variants, "грудь = breasts/breast/chest", any of which counts as kept.
   @Published var glossary = Translator.defaultGlossary {
-    didSet { UserDefaults.standard.set(glossary, forKey: "llm.glossary") }
+    didSet { LilStore.standard.set(glossary, forKey: "llm.glossary") }
   }
 
   static let defaultGlossary = TextRules.defaultGlossary
@@ -158,7 +158,7 @@ final class Translator: ObservableObject {
   }
 
   init() {
-    let d = UserDefaults.standard
+    let d = LilStore.standard
     if let g = d.string(forKey: "llm.glossary") { glossary = g }
     if let raw = d.string(forKey: "llm.engine") {
       if let e = Engine(rawValue: raw) {

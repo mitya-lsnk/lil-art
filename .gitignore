@@ -37,3 +37,6 @@ design/lil-art.html
 
 # reference pictures for refactoring checks (tools/golden.sh)
 golden/
+
+# settings and caches of the running program (see LilStore)
+/data/

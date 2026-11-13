@@ -1,4 +1,9 @@
 import Foundation
+#if canImport(LilKitShared)
+  // LilStore is internal to the shared file: this package is only ever built to be tested.
+  // In the app the shared file lies in the same module, so no import is needed there.
+  @testable import LilKitShared
+#endif
 
 /// Where the models live, and where the ones moved off the Mac go.
 ///
@@ -7,11 +12,8 @@ import Foundation
 /// the disk is plugged in; unplugged, the link points nowhere and the model is simply absent.
 /// The whole folder can live elsewhere too (settings), the links work the same from there.
 enum ModelsFolder {
-  /// lil art's own settings: its standard defaults in the app, the same domain from lilart-gen.
-  static var store: UserDefaults {
-    Bundle.main.bundleIdentifier == "com.lil.art"
-      ? .standard : (UserDefaults(suiteName: "com.lil.art") ?? .standard)
-  }
+  /// lil art's own settings: the file `data/settings.json` in the project (see LilStore).
+  static var store: LilStore { LilStore.standard }
 
   /// The folder the person chose, or `models` inside the project.
   static func resolve(stored: String?, root: URL) -> URL {

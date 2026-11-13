@@ -106,10 +106,10 @@ final class Studio: ObservableObject {
   /// Playback speed of the finished file. Prefilled from the model, changeable in PRO.
   @Published var videoFPS = 16
   @Published var videoFormat: VideoWriter.Format = {
-    let raw = UserDefaults.standard.string(forKey: "video.format") ?? ""
+    let raw = LilStore.standard.string(forKey: "video.format") ?? ""
     return VideoWriter.Format(rawValue: raw) ?? .h264
   }() {
-    didSet { UserDefaults.standard.set(videoFormat.rawValue, forKey: "video.format") }
+    didSet { LilStore.standard.set(videoFormat.rawValue, forKey: "video.format") }
   }
   /// The picture an image-to-video model animates. Deliberately not one of the picture
   /// tab's references: a video model takes exactly one, it is the first frame of the
@@ -132,8 +132,8 @@ final class Studio: ObservableObject {
   @Published var showMemory = false
   @Published var showGallery = false
   /// Model, settings and prompt come back as they were when the app was quit.
-  @Published var restoreSession = UserDefaults.standard.object(forKey: "session.restore") as? Bool ?? true {
-    didSet { UserDefaults.standard.set(restoreSession, forKey: "session.restore") }
+  @Published var restoreSession = LilStore.standard.object(forKey: "session.restore") as? Bool ?? true {
+    didSet { LilStore.standard.set(restoreSession, forKey: "session.restore") }
   }
 
   let catalog = Catalog()
@@ -167,8 +167,8 @@ final class Studio: ObservableObject {
   @Published var hudMode: HUDMode = .auto
   @Published var hudShown = true
   /// The in-between steps of a picture look like noise; most people would rather not watch.
-  @Published var showProgressPreview = UserDefaults.standard.bool(forKey: "stage.preview") {
-    didSet { UserDefaults.standard.set(showProgressPreview, forKey: "stage.preview") }
+  @Published var showProgressPreview = LilStore.standard.bool(forKey: "stage.preview") {
+    didSet { LilStore.standard.set(showProgressPreview, forKey: "stage.preview") }
   }
   @Published var stepFraction = 0.0
   @Published var notices: [Notice] = []
@@ -222,8 +222,8 @@ final class Studio: ObservableObject {
     MediaGenerationEnvironment.default.externalUrls = [models]
     // The cache choice is the difference between a model staying in memory and being
     // reloaded every time, so it has no business resetting on every launch.
-    if UserDefaults.standard.object(forKey: "engine.cacheGB") != nil {
-      setCache(UserDefaults.standard.double(forKey: "engine.cacheGB"))
+    if LilStore.standard.object(forKey: "engine.cacheGB") != nil {
+      setCache(LilStore.standard.double(forKey: "engine.cacheGB"))
     } else {
       cacheGB = Double(MediaGenerationEnvironment.default.maxTotalWeightsCacheSize) / 1_073_741_824
     }
@@ -420,14 +420,14 @@ final class Studio: ObservableObject {
   @Published var controlDownloads: [String: Double] = [:]
   /// Phrases the person saved for edits, one click away.
   @Published var editPhrases: [String] =
-    UserDefaults.standard.stringArray(forKey: "edit.phrases") ?? []
+    LilStore.standard.stringArray(forKey: "edit.phrases") ?? []
   {
-    didSet { UserDefaults.standard.set(editPhrases, forKey: "edit.phrases") }
+    didSet { LilStore.standard.set(editPhrases, forKey: "edit.phrases") }
   }
   /// Each tab keeps the model last used on it; the picture tab's is in `model` while it shows.
   var imageTabModel = ""
-  var editTabModel = UserDefaults.standard.string(forKey: "edit.model") ?? "" {
-    didSet { UserDefaults.standard.set(editTabModel, forKey: "edit.model") }
+  var editTabModel = LilStore.standard.string(forKey: "edit.model") ?? "" {
+    didSet { LilStore.standard.set(editTabModel, forKey: "edit.model") }
   }
   /// The model's own values for its finer settings, per model, from the engine.
   @Published var tweakDefaults: [String: [String: Double]] = [:]
@@ -468,7 +468,7 @@ final class Studio: ObservableObject {
   var lastSavedSession: Data?
 
   func restore() {
-    guard let data = UserDefaults.standard.data(forKey: "session.last"),
+    guard let data = LilStore.standard.data(forKey: "session.last"),
       let session = try? JSONDecoder().decode(Session.self, from: data)
     else { return }
     prompt = session.prompt

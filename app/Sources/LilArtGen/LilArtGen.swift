@@ -71,8 +71,6 @@ let defaultModel = "krea_2_turbo_q8p.ckpt"
 let modelsDir = ModelsFolder.url
 let engineBinary = ProjectRoot.places.engineBinary
 let engineLog = ProjectRoot.places.engineLog
-/// lil art's own settings, so a started engine gets the same port and weights cache.
-let appDefaults = UserDefaults(suiteName: "com.lil.art")
 
 func say(_ text: String) {
   FileHandle.standardError.write(Data((text + "\n").utf8))
@@ -115,7 +113,7 @@ final class Engine: @unchecked Sendable {
 
   /// lil art's "keep the model in memory" setting, passed on exactly as the app does.
   static var weightsCacheGB: Int {
-    Int((appDefaults?.double(forKey: "engine.cacheGB") ?? 0).rounded())
+    Int((LilStore.standard.double(forKey: "engine.cacheGB")).rounded())
   }
 
   func answering() -> Bool { knock(port: port) }
@@ -612,8 +610,11 @@ struct LilArtGen {
   static func main() async {
     // Line by line even into a file, so a caller watching the output sees each picture land.
     setvbuf(stdout, nil, _IOLBF, 0)
+    // lil art's own settings, so a started engine gets the same port and weights cache; this
+    // program has no Info.plist, so it points the store at the project it lies in
+    LilStore.standard = LilStore.at(root: ProjectRoot.url, legacyDomain: "com.lil.art")
     var environment = GenCommand.Environment()
-    environment.appPort = appDefaults?.integer(forKey: "engine.port") ?? 0
+    environment.appPort = LilStore.standard.integer(forKey: "engine.port")
     environment.defaultModel = defaultModel
     environment.modelsDir = modelsDir
     let command: GenCommand

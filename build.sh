@@ -87,6 +87,8 @@ rm -f Sources/LilArtGen/*.swift
 cp "$GEN_SRC"/*.swift Sources/LilArtGen/
 cp "$SRC/TensorImage.swift" "$SRC/ModelParts.swift" "$SRC/WeightCompressor.swift" Sources/LilArtGen/
 cp "$CORE/ScaledCheckpoint.swift" "$CORE/Storage.swift" "$CORE/ProjectRoot.swift" "$CORE/GenArguments.swift" "$CORE/GenCommand.swift" Sources/LilArtGen/
+# the settings store lies in the shared lil file, which brings its generated companion along
+cp "$SRC/LilKit.swift" "$SRC/LilApp.swift" Sources/LilArtGen/
 
 echo "==> поднимаю движок до свежей версии"
 python3 - <<'PYEOF'
@@ -348,8 +350,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>lil art</string>
   <key>CFBundleIdentifier</key><string>com.lil.art</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.4.0</string>
-  <key>CFBundleVersion</key><string>4</string>
+  <key>CFBundleShortVersionString</key><string>0.5.0</string>
+  <key>CFBundleVersion</key><string>5</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>

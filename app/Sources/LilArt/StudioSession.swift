@@ -409,7 +409,7 @@ extension Studio {
     // The saver fires on every change anywhere in the window; most of the time nothing
     // in the session moved, and rewriting the same bytes is pure waste.
     if let data = try? JSONEncoder().encode(session), data != lastSavedSession {
-      UserDefaults.standard.set(data, forKey: "session.last")
+      LilStore.standard.set(data, forKey: "session.last")
       lastSavedSession = data
     }
   }
