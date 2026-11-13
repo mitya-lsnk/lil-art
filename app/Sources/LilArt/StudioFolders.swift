@@ -61,6 +61,8 @@ extension Studio {
   /// so the sidebar can show what it is about to use.
   func modelChanged() {
     recommended = nil
+    // a bigger model leaves less room for kept copies
+    if !busy { applyCache(cacheGB) }
     savedForModel = ModelPrefs.load(model)
     refreshSpeedProfile()
     let wanted = model
@@ -93,7 +95,7 @@ extension Studio {
     let used = Set(loraPicks.map(\.file))
     guard let next = loraFiles.first(where: { !used.contains($0.file) }) ?? loraFiles.first
     else { return }
-    loraPicks.append(LoRAPick(file: next.file))
+    loraPicks.append(LoRAPick(file: next.file, weight: LoRAPrefs.weight(for: next.file) ?? 0.6))
   }
 
 
@@ -105,12 +107,32 @@ extension Studio {
   func setLoRA(_ pick: LoRAPick, file: String) {
     guard let i = loraPicks.firstIndex(where: { $0.id == pick.id }) else { return }
     loraPicks[i].file = file
+    // each LoRA comes back at the strength it was last used at
+    if let saved = LoRAPrefs.weight(for: file) { loraPicks[i].weight = saved }
   }
 
 
   func setLoRAWeight(_ pick: LoRAPick, _ weight: Double) {
     guard let i = loraPicks.firstIndex(where: { $0.id == pick.id }) else { return }
     loraPicks[i].weight = weight
+    LoRAPrefs.setWeight(weight, for: loraPicks[i].file)
+  }
+
+
+  func loraWords(_ file: String) -> String { LoRAPrefs.words(for: file) }
+
+  func setLoRAWords(_ words: String, for file: String) {
+    LoRAPrefs.setWords(words, for: file)
+    objectWillChange.send()
+  }
+
+  /// The trigger words of the LoRAs in use, to go after the prompt; nothing already written
+  /// there (or in its English) is repeated.
+  var loraSuffix: String {
+    guard effectiveLoRAs != nil else { return "" }
+    return LoRAPrefs.suffix(
+      words: loraPicks.filter { $0.weight != 0 }.map { LoRAPrefs.words(for: $0.file) },
+      alreadyIn: [prompt, englishPrompt])
   }
 
 

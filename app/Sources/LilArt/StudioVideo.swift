@@ -16,6 +16,8 @@ extension Studio {
   /// about half a minute once per launch. Doing it in the background right away means the
   /// first frame the user asks for is already a warm one.
   func warmUp() {
+    // a value saved before the limit existed is cut down before the engine starts with it
+    applyCache(cacheGB)
     engineHost.autoStart(modelsDir: modelsDir)
     Task { await loadClips() }
     Task { await loadStills() }

@@ -283,7 +283,14 @@ extension Studio {
 
 
   /// The engine takes its memory setting when it starts, so a change restarts it.
-  func applyCache(_ gb: Double) {
+  func applyCache(_ asked: Double) {
+    // never more than this Mac can keep beside the chosen model (see CachePolicy)
+    let gb = CachePolicy.clamp(asked, machineGB: Mem.machineGB, modelGB: modelGB)
+    if gb < asked {
+      status = gb > 0
+        ? String(format: "держать в памяти можно не больше %.0f ГБ с этой моделью", gb)
+        : "с этой моделью в памяти ничего не держим: иначе повторные генерации медленнее"
+    }
     guard gb != cacheGB else { return }
     setCache(gb)
     if engineHost.running { restartEngine() }
@@ -417,6 +424,11 @@ extension Studio {
 
   /// As much as can be kept without starving the system: everything but 6 GB.
   var maxCacheGB: Double { max(4, (Mem.machineGB - 6).rounded(.down)) }
+  var modelGB: Double { Double(modelBytes) / 1_073_741_824 }
+  /// The most the engine may keep between runs with the chosen model.
+  var safeCacheGB: Double {
+    modelBytes > 0 ? CachePolicy.safeGB(machineGB: Mem.machineGB, modelGB: modelGB) : maxCacheGB
+  }
   var modelBytes: Int64 { library.installed.first { $0.file == model }?.bytes ?? 0 }
 
   func flipAspect() { aspect = aspect.flipped }

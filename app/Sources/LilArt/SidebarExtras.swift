@@ -346,6 +346,18 @@ struct LoRARow: View {
           .font(.mono(10, .semibold)).foregroundStyle(P.ink)
           .frame(width: 38, alignment: .trailing)
       }
+
+      HStack(spacing: 10) {
+        Text("СЛОВА").font(.mono(9)).tracking(0.8).foregroundStyle(P.muted)
+        TextField(
+          "триггерные слова через запятую",
+          text: Binding(get: { s.loraWords(pick.file) }, set: { s.setLoRAWords($0, for: pick.file) })
+        )
+        .textFieldStyle(.plain).font(.mono(10)).foregroundStyle(P.ink)
+        .padding(.horizontal, 8).frame(height: 26)
+        .background(P.panel2).overlay(Rectangle().stroke(P.line, lineWidth: 1))
+      }
+      .help("Запоминаются за этой LoRA и сами дописываются в конец промпта, пока она включена")
     }
     .padding(10)
     .background(P.panel)

@@ -135,7 +135,7 @@ extension Studio {
       var request = base
       request.seed = seed
       return ImageJob(
-        request: request, suffix: presetSuffix, modelName: name,
+        request: request, suffix: loraSuffix + presetSuffix, modelName: name,
         exactSteps: pro ? proSteps : nil, quality: quality, savedSteps: savedForModel?.steps)
     }
   }
@@ -173,7 +173,7 @@ extension Studio {
       var request = base
       request.seed = seed
       return ImageJob(
-        request: request, suffix: presetSuffix, modelName: name,
+        request: request, suffix: loraSuffix + presetSuffix, modelName: name,
         exactSteps: pro ? proSteps : nil, quality: quality, savedSteps: savedForModel?.steps,
         tab: .edit)
     }
@@ -223,7 +223,7 @@ extension Studio {
       tweaks: tweaksInUse(for: videoEntry, masked: false), refiner: videoRefinerInUse?.file,
       refinerStart: Float(videoRefinerStart),
       takesImage: takesImageOverridden ? videoTakesImage : nil)
-    return VideoJob(request: request, suffix: presetSuffix, fps: videoFPS, format: videoFormat)
+    return VideoJob(request: request, suffix: loraSuffix + presetSuffix, fps: videoFPS, format: videoFormat)
   }
 
 
