@@ -138,7 +138,7 @@ struct LilScheme {
     screen: 0x000000, stage: 0x7a7a7a, dark: false)
 }
 
-/// The chosen skin and mode, remembered in the app's defaults. Views don't watch this object
+/// The chosen skin and mode, remembered in the app's settings (`LilStore`). Views don't watch this object
 /// themselves: reading `P` inside a body is enough, because the getter reports the access to
 /// SwiftUI's observation (written by hand — the @Observable macro needs Xcode's plugins).
 final class LilAppearance: @unchecked Sendable {
@@ -151,23 +151,24 @@ final class LilAppearance: @unchecked Sendable {
 
   private init() {
     if #available(macOS 14, *) { registrar = ObservationRegistrar() } else { registrar = nil }
-    let d = UserDefaults.standard
+    let d = LilStore.standard
     let stored = d.string(forKey: "lil.skin").flatMap(LilSkin.init(rawValue:))
     _skin = stored.flatMap { LilApp.skins.contains($0) ? $0 : nil } ?? LilApp.defaultSkin
     // No stored choice → follow the system, as the web apps do. An explicit choice wins.
     _mode = d.string(forKey: "lil.mode").flatMap(LilMode.init(rawValue:))
       ?? LilApp.defaultMode
-      ?? (d.string(forKey: "AppleInterfaceStyle") == "Dark" ? .dark : .light)
+      // the system's own choice is macOS's to keep, so it is asked of the system
+      ?? (UserDefaults.standard.string(forKey: "AppleInterfaceStyle") == "Dark" ? .dark : .light)
     _scheme = .of(_skin, _mode)
   }
 
   var skin: LilSkin {
     get { track(); return _skin }
-    set { change { _skin = newValue; UserDefaults.standard.set(newValue.rawValue, forKey: "lil.skin") } }
+    set { change { _skin = newValue; LilStore.standard.set(newValue.rawValue, forKey: "lil.skin") } }
   }
   var mode: LilMode {
     get { track(); return _mode }
-    set { change { _mode = newValue; UserDefaults.standard.set(newValue.rawValue, forKey: "lil.mode") } }
+    set { change { _mode = newValue; LilStore.standard.set(newValue.rawValue, forKey: "lil.mode") } }
   }
   var scheme: LilScheme { track(); return _scheme }
 
@@ -473,5 +474,242 @@ struct LilAboutSettings<Extra: View>: View {
       }
       Cap(text: "lil software", rule: true).padding(.top, 18)
     }
+  }
+}
+
+// MARK: - LilStore
+// Foundation only: nothing in this section may use AppKit or SwiftUI, so any tool can take it.
+
+/// The app's settings in a file you can see, `<project>/data/settings.json`, instead of the
+/// hidden preferences in ~/Library. It answers the calls the apps made to UserDefaults
+/// (`string`, `bool`, `integer`, `double`, `data`, `array`, `stringArray`, `dictionary`,
+/// `object`, `set`, `removeObject`), so a move is a change of one name.
+///
+/// The project folder is built into the app's Info.plist by its build script (`LilRoot`). An app
+/// without one (not moved yet) goes on using UserDefaults through the same calls. The first run
+/// on a new file copies the app's old settings in; later runs never touch the file's values.
+/// What macOS keeps for itself (window frames, panel sizes) is not copied and stays in Library.
+final class LilStore: @unchecked Sendable {
+  /// The store the app uses. Set it before the first read to point somewhere else (a tool that
+  /// has no Info.plist of its own).
+  nonisolated(unsafe) static var standard: LilStore = makeStandard()
+
+  private let url: URL?
+  private let defaults: UserDefaults?
+  private let lock = NSLock()
+  private var values: [String: Any] = [:]
+  /// True once a write to the file has failed; the values are then only in memory.
+  private(set) var writeFailed = false
+
+  /// A store on a file. `legacy` is the app's old UserDefaults domain: when the file is new its
+  /// own settings are copied in, once (even if there are none, so it is not tried again).
+  init(file: URL, migratingFrom legacy: [String: Any]? = nil) {
+    url = file
+    defaults = nil
+    if FileManager.default.fileExists(atPath: file.path) {
+      values = Self.read(file)
+    } else if let legacy {
+      values = Self.migratable(legacy)
+      write()
+    }
+  }
+
+  /// No project folder: the same calls, answered by UserDefaults.
+  init(passingThroughTo defaults: UserDefaults) {
+    url = nil
+    self.defaults = defaults
+  }
+
+  // MARK: reading
+
+  func object(forKey key: String) -> Any? {
+    if let defaults { return defaults.object(forKey: key) }
+    return locked { values[key] }
+  }
+
+  func string(forKey key: String) -> String? { object(forKey: key) as? String }
+
+  func bool(forKey key: String) -> Bool {
+    switch object(forKey: key) {
+    case let number as NSNumber: return number.boolValue
+    case let text as String: return ["true", "yes", "1"].contains(text.lowercased())
+    default: return false
+    }
+  }
+
+  func integer(forKey key: String) -> Int {
+    switch object(forKey: key) {
+    case let number as NSNumber: return number.intValue
+    case let text as String: return Int(text) ?? 0
+    default: return 0
+    }
+  }
+
+  func double(forKey key: String) -> Double {
+    switch object(forKey: key) {
+    case let number as NSNumber: return number.doubleValue
+    case let text as String: return Double(text) ?? 0
+    default: return 0
+    }
+  }
+
+  func data(forKey key: String) -> Data? { object(forKey: key) as? Data }
+  func array(forKey key: String) -> [Any]? { object(forKey: key) as? [Any] }
+  func stringArray(forKey key: String) -> [String]? { object(forKey: key) as? [String] }
+  func dictionary(forKey key: String) -> [String: Any]? { object(forKey: key) as? [String: Any] }
+
+  // MARK: writing
+
+  /// nil forgets the key. A value JSON cannot hold (a date, a URL, NaN) is refused, not half-saved.
+  func set(_ value: Any?, forKey key: String) {
+    if let defaults {
+      defaults.set(value, forKey: key)
+      return
+    }
+    guard let value else {
+      removeObject(forKey: key)
+      return
+    }
+    guard JSONSerialization.isValidJSONObject(["v": Self.encode(value)]) else {
+      assertionFailure("LilStore: \(key) is not a value JSON can keep")
+      return
+    }
+    locked {
+      values[key] = value
+      write()
+    }
+  }
+
+  func removeObject(forKey key: String) {
+    if let defaults {
+      defaults.removeObject(forKey: key)
+      return
+    }
+    locked {
+      values.removeValue(forKey: key)
+      write()
+    }
+  }
+
+  // MARK: file
+
+  private func locked<T>(_ body: () -> T) -> T {
+    lock.lock()
+    defer { lock.unlock() }
+    return body()
+  }
+
+  /// Whole file, atomically: a crash halfway leaves the old one, never half of the new.
+  private func write() {
+    guard let url else { return }
+    do {
+      let json = Self.encode(values)
+      let data = try JSONSerialization.data(
+        withJSONObject: json, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
+      try FileManager.default.createDirectory(
+        at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try data.write(to: url, options: .atomic)
+      writeFailed = false
+    } catch {
+      writeFailed = true
+    }
+  }
+
+  /// A file that cannot be read is put aside as `settings.json.broken`, never written over.
+  private static func read(_ file: URL) -> [String: Any] {
+    if let data = try? Data(contentsOf: file),
+      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    {
+      return decode(json) as? [String: Any] ?? [:]
+    }
+    let aside = file.appendingPathExtension("broken")
+    try? FileManager.default.removeItem(at: aside)
+    try? FileManager.default.moveItem(at: file, to: aside)
+    return [:]
+  }
+
+  /// JSON has no bytes: `Data` is written as {"$data": "<base64>"} and read back as Data.
+  private static func encode(_ value: Any) -> Any {
+    switch value {
+    case let data as Data: return ["$data": data.base64EncodedString()]
+    case let list as [Any]: return list.map(encode)
+    case let table as [String: Any]: return table.mapValues(encode)
+    default: return value
+    }
+  }
+
+  private static func decode(_ value: Any) -> Any {
+    switch value {
+    case let table as [String: Any]:
+      if table.count == 1, let text = table["$data"] as? String, let data = Data(base64Encoded: text) {
+        return data
+      }
+      return table.mapValues(decode)
+    case let list as [Any]: return list.map(decode)
+    default: return value
+    }
+  }
+
+  // MARK: moving in from UserDefaults
+
+  /// Of an old domain, what belongs to the app: not what macOS keeps for itself (window frames,
+  /// panel sizes, languages) and nothing that looks like a secret. Keys live in secrets/, not here.
+  static func migratable(_ legacy: [String: Any]) -> [String: Any] {
+    legacy.filter { !isSystemKey($0.key) && !looksSecret($0.key) }
+  }
+
+  private static func isSystemKey(_ key: String) -> Bool {
+    ["NS", "Apple", "AV", "com.apple", "com_apple", "WebKit"].contains { key.hasPrefix($0) }
+  }
+
+  private static func looksSecret(_ key: String) -> Bool {
+    let lower = key.lowercased()
+    return ["token", "secret", "password", "apikey", "api_key", "api-key", "credential"]
+      .contains { lower.contains($0) }
+  }
+
+  // MARK: where it lives
+
+  static func fileURL(root: URL) -> URL {
+    root.appendingPathComponent("data").appendingPathComponent("settings.json")
+  }
+
+  static func cacheFolder(root: URL) -> URL {
+    root.appendingPathComponent("data").appendingPathComponent("cache")
+  }
+
+  /// The project folder the build wrote into Info.plist, if it is there.
+  static func rootFromInfo(_ value: String?, isFolder: (String) -> Bool) -> URL? {
+    guard let value, !value.isEmpty else { return nil }
+    let url = URL(fileURLWithPath: value).standardizedFileURL
+    return isFolder(url.path) ? url : nil
+  }
+
+  /// The project folder of the running app, nil for a program with no `LilRoot`.
+  static var projectRoot: URL? {
+    rootFromInfo(Bundle.main.object(forInfoDictionaryKey: "LilRoot") as? String) {
+      var isDirectory: ObjCBool = false
+      return FileManager.default.fileExists(atPath: $0, isDirectory: &isDirectory) && isDirectory.boolValue
+    }
+  }
+
+  /// The store on `<root>/data/settings.json`, taking in the old settings of `legacyDomain`.
+  static func at(root: URL, legacyDomain: String?) -> LilStore {
+    let legacy = legacyDomain.flatMap { UserDefaults.standard.persistentDomain(forName: $0) }
+    return LilStore(file: fileURL(root: root), migratingFrom: legacy)
+  }
+
+  private static func makeStandard() -> LilStore {
+    guard let root = projectRoot else { return LilStore(passingThroughTo: .standard) }
+    return at(root: root, legacyDomain: Bundle.main.bundleIdentifier)
+  }
+
+  /// What the app downloads (URLSession's cache) goes to `<root>/data/cache/http`, not to
+  /// ~/Library/Caches. Call it once at launch, before the first request.
+  static func useProjectCache() {
+    guard let root = projectRoot else { return }
+    let folder = cacheFolder(root: root).appendingPathComponent("http")
+    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    URLCache.shared = URLCache(memoryCapacity: 16 << 20, diskCapacity: 256 << 20, directory: folder)
   }
 }
