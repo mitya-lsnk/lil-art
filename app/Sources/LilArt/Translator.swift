@@ -402,8 +402,9 @@ final class Translator: ObservableObject {
   }
 
   private func chat(
-    system: String, user: String, timeout: TimeInterval, roomMade: Bool = false
+    system: String, user: String, timeout: TimeInterval, attempt: Int = 0
   ) async -> String? {
+    if attempt == 0 { await ensureRoom() }
     guard var url = URL(string: endpoint) else { return nil }
     if !url.path.hasSuffix("/chat/completions") {
       url = url.appendingPathComponent("chat/completions")
@@ -425,12 +426,20 @@ final class Translator: ObservableObject {
     do {
       let (data, response) = try await URLSession.shared.data(for: request)
       if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
-        if http.statusCode == 507, !roomMade, runtime == .omlx, let makeRoom {
-          await makeRoom()
-          return await chat(system: system, user: user, timeout: timeout, roomMade: true)
+        // 507: no memory for the model. The engine gives way (if it has not yet) and the system
+        // gets a moment to count the memory as free.
+        if http.statusCode == 507, runtime == .omlx, isGenerating?() != true,
+          attempt < MemoryTurn.retryPauses.count
+        {
+          await makeRoom?(false)
+          try? await Task.sleep(nanoseconds: UInt64(MemoryTurn.retryPauses[attempt] * 1_000_000_000))
+          return await chat(system: system, user: user, timeout: timeout, attempt: attempt + 1)
         }
-        endpointStatus = http.statusCode == 507
-          ? "в памяти нет места для модели: закройте лишнее" : "сервер ответил \(http.statusCode)"
+        endpointStatus = http.statusCode != 507
+          ? "сервер ответил \(http.statusCode)"
+          : isGenerating?() == true
+            ? "идёт генерация, языковой модели не хватает памяти: дождитесь конца"
+            : "в памяти нет места для языковой модели: закройте лишние программы"
         return nil
       }
       guard
@@ -577,7 +586,21 @@ final class Translator: ObservableObject {
 
   /// Hands memory back from the picture engine, set by the studio. Right after a run the engine
   /// still holds its model, and a language model that is asked for then is refused with 507.
-  var makeRoom: (() async -> Void)?
+  /// It is told whether the language model is already in memory and decides itself (MemoryTurn).
+  var makeRoom: ((_ llmLoaded: Bool) async -> Void)?
+  var isGenerating: (() -> Bool)?
+
+  /// Before a request: when the chosen model is not in oMLX's memory, the engine gives way
+  /// first, so the request is not refused and sent twice.
+  private func ensureRoom() async {
+    guard freeForPictures, runtime == .omlx, let makeRoom else { return }
+    guard let list = object(await admin("models", timeout: 3))?["models"] as? [[String: Any]]
+    else { return }
+    let models = list.compactMap { m in
+      (m["id"] as? String).map { (id: $0, loaded: m["loaded"] as? Bool == true) }
+    }
+    await makeRoom(MemoryTurn.llmLoaded(wanted: customModel, models: models))
+  }
 
   // MARK: system translator
 

@@ -38,8 +38,8 @@ extension Studio {
     // The weights live in the engine, a separate program. Restarting it is the only sure
     // way to hand that memory back.
     if engineHost.running {
-      engineHost.stop()
-      try? await Task.sleep(nanoseconds: 500_000_000)
+      // waited for: whoever asked for the memory must find it free when this returns
+      await engineHost.stopAndWait()
       engineHost.start(modelsDir: modelsDir)
     }
   }

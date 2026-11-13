@@ -401,6 +401,12 @@ final class EngineHost: ObservableObject {
     }
   }
 
+  /// Stops the engine and returns only when its process is really gone, so its memory is free.
+  func stopAndWait() async {
+    stop()
+    await cleanup?.value
+  }
+
   private static func exitMessage(code: Int32, signaled: Bool) -> String {
     let hint = ", подробности в engine.log в папке проекта"
     if signaled {
