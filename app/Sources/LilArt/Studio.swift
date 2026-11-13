@@ -107,6 +107,14 @@ final class Studio: ObservableObject {
   @Published var videoFPS = 16
   /// The frame count typed in; nil until then, when the model's usual three seconds are offered.
   @Published var videoManualFrames: Int?
+  /// Whether the finished clip is made larger by macOS.
+  @Published var videoUpscale = VideoUpscale(text: LilStore.standard.string(forKey: "video.upscale")) {
+    didSet { LilStore.standard.set(videoUpscale.text, forKey: "video.upscale") }
+  }
+  /// Degrees the chip must cool to before the next job of a queue; 0 = no pause.
+  @Published var cooldownLimit = LilStore.standard.double(forKey: "queue.cooldown") {
+    didSet { LilStore.standard.set(cooldownLimit, forKey: "queue.cooldown") }
+  }
   /// What is done to the frames after the model: nothing, smoother, longer.
   @Published var videoFinish = VideoFinish(text: LilStore.standard.string(forKey: "video.finish")) {
     didSet { LilStore.standard.set(videoFinish.text, forKey: "video.finish") }

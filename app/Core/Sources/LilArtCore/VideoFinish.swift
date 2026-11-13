@@ -78,3 +78,46 @@ enum VideoFinish: Equatable, Hashable {
     }
   }
 }
+
+struct VideoSizePair: Equatable {
+  var width: Int
+  var height: Int
+}
+
+/// Making a finished clip larger with macOS's own scaler instead of asking the model for a large
+/// frame: the model's memory and time grow with the frame, the scaler's cost is next to nothing.
+enum VideoUpscale: Double, CaseIterable, Hashable {
+  case none = 1
+  case x1_5 = 1.5
+  case x2 = 2
+
+  var label: String {
+    switch self {
+    case .none: return "размер как есть"
+    case .x1_5: return "увеличить ×1.5"
+    case .x2: return "увеличить ×2"
+    }
+  }
+
+  var text: String { self == .x1_5 ? "1.5" : String(Int(rawValue)) }
+
+  init(text: String?) {
+    self = text.flatMap(Double.init).flatMap(VideoUpscale.init(rawValue:)) ?? .none
+  }
+
+  func size(width: Int, height: Int) -> VideoSizePair {
+    VideoSizePair(width: Int(Double(width) * rawValue), height: Int(Double(height) * rawValue))
+  }
+}
+
+/// A pause between jobs of a queue so the chip cools down first.
+enum Cooldown {
+  /// Seconds after which the queue goes on however hot the chip still is.
+  static let longestWait = 180.0
+
+  /// `limit` 0 means the pause is switched off.
+  static func shouldWait(chip: Double?, limit: Double, waited: Double) -> Bool {
+    guard limit > 0, let chip else { return false }
+    return chip > limit && waited < longestWait
+  }
+}

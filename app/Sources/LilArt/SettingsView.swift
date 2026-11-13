@@ -311,6 +311,15 @@ private struct CacheRow: View {
   }
 
   var body: some View {
+    LilSettingRow(
+      title: "Остывать между заданиями",
+      note: "Очередь ждёт, пока чип не остынет до выбранной температуры, но не дольше трёх минут"
+    ) {
+      Segmented(
+        options: [(0.0, "Нет"), (60.0, "до 60°"), (70.0, "до 70°"), (80.0, "до 80°")],
+        value: Binding(get: { s.cooldownLimit }, set: { s.cooldownLimit = $0 }))
+        .fixedSize()
+    }
     LilSettingRow(title: "Держать модель в памяти", note: note) {
       HStack(spacing: 8) {
         Segmented(

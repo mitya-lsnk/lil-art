@@ -45,6 +45,7 @@ extension Studio {
     var fps: Int
     var format: VideoWriter.Format
     var finish = VideoFinish.asIs
+    var upscale = VideoUpscale.none
   }
 
 
@@ -235,7 +236,8 @@ extension Studio {
       takesImage: takesImageOverridden ? videoTakesImage : nil)
     // LoRAs are not applied to video here, so their trigger words stay out of it too
     return VideoJob(
-      request: request, suffix: presetSuffix, fps: videoFPS, format: videoFormat, finish: videoFinish)
+      request: request, suffix: presetSuffix, fps: videoFPS, format: videoFormat, finish: videoFinish,
+      upscale: videoUpscale)
   }
 
 
@@ -276,7 +278,12 @@ extension Studio {
         queued = queue.count
       }
     }
+    var first = true
     while id == runID, !Task.isCancelled, !queue.isEmpty {
+      // between jobs the chip is given time to cool, if that is asked for
+      if !first { await coolDown(id) }
+      first = false
+      guard id == runID, !Task.isCancelled, !queue.isEmpty else { break }
       let job = queue.removeFirst()
       queued = queue.count
       let ok: Bool
@@ -297,6 +304,21 @@ extension Studio {
       }
     }
     if id == runID, !failed { status = Task.isCancelled ? "отменено" : "готов" }
+  }
+
+
+  func coolDown(_ id: Int) async {
+    var waited = 0.0
+    refreshMemory()
+    while id == runID, !Task.isCancelled,
+      Cooldown.shouldWait(chip: monitor.now.chipTemp, limit: cooldownLimit, waited: waited)
+    {
+      status = String(
+        format: "остываю: %.0f° → %.0f°", monitor.now.chipTemp ?? 0, cooldownLimit)
+      try? await Task.sleep(nanoseconds: 3_000_000_000)
+      waited += 3
+      refreshMemory()
+    }
   }
 
 
@@ -449,9 +471,13 @@ extension Studio {
       }
       // the model's own time, before any frames are drawn in: that is what the estimate predicts
       rememberVideoRate(request, seconds: Date().timeIntervalSince(started), frames: pngs.count)
-      if id == runID, job.finish != .asIs { status = "дорисовываю кадры: \(job.finish.label)" }
+      if id == runID, job.finish != .asIs || job.upscale != .none {
+        status = "дорабатываю ролик: "
+          + [job.finish == .asIs ? nil : job.finish.label, job.upscale == .none ? nil : job.upscale.label]
+          .compactMap { $0 }.joined(separator: ", ")
+      }
       let written = try await VideoWriter.write(
-        pngs: pngs, fps: job.fps, finish: job.finish, to: url, format: job.format)
+        pngs: pngs, fps: job.fps, finish: job.finish, upscale: job.upscale, to: url, format: job.format)
       if let note = written.note {
         notify(Notice(title: "Ролик сохранён как есть", message: Self.capitalized(note)))
       }

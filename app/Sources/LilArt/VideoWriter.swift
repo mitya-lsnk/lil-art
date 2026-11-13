@@ -79,42 +79,60 @@ enum VideoWriter {
   /// not take), the clip is written as it is and the reason comes back in `note`: twenty minutes
   /// of generation are never thrown away over the finishing touch.
   @available(macOS 26, *)
-  static func write(pngs: [Data], fps: Int, finish: VideoFinish, to url: URL, format: Format) async throws
-    -> Written
-  {
+  static func write(
+    pngs: [Data], fps: Int, finish: VideoFinish, upscale: VideoUpscale = .none, to url: URL, format: Format
+  ) async throws -> Written {
     guard let first = pngs.first, let firstImage = decode(first) else { throw Failure.noFrames }
-    let plan = finish.plan(frames: pngs.count, fps: fps)
-    func plain(_ note: String?) async throws -> Written {
-      try await write(pngs: pngs, fps: Double(fps), to: url, format: format)
-      return Written(frames: pngs.count, fps: fps, note: note)
+    var notes: [String] = []
+    var plan = finish.plan(frames: pngs.count, fps: fps)
+    let same = finish.plan(frames: pngs.count, fps: fps) == VideoFinish.asIs.plan(frames: pngs.count, fps: fps)
+    var drawer: FrameInterpolator?
+    if !same {
+      do { drawer = try FrameInterpolator(width: firstImage.width, height: firstImage.height) } catch {
+        notes.append(error.localizedDescription)
+        plan = VideoFinish.asIs.plan(frames: pngs.count, fps: fps)
+      }
     }
-    guard plan.frames.count != pngs.count || plan.fps != fps else { return try await plain(nil) }
-    let drawer: FrameInterpolator
-    do { drawer = try FrameInterpolator(width: firstImage.width, height: firstImage.height) } catch {
-      return try await plain(error.localizedDescription)
+    var scaler: FrameUpscaler?
+    if upscale != .none {
+      do {
+        scaler = try FrameUpscaler(width: firstImage.width, height: firstImage.height, factor: upscale.rawValue)
+      } catch { notes.append(error.localizedDescription) }
     }
     // the two source frames around the one being drawn, in the converter's form
     var held: [Int: CVPixelBuffer] = [:]
     func source(_ index: Int) throws -> CVPixelBuffer {
       if let buffer = held[index] { return buffer }
-      guard let image = decode(pngs[index]) else { throw Failure.unreadableFrame(index) }
+      guard let image = decode(pngs[index]), let drawer else { throw Failure.unreadableFrame(index) }
       let buffer = try drawer.source(image)
       held = held.filter { $0.key >= index - 1 }
       held[index] = buffer
       return buffer
     }
+    let steps = plan.frames
+    func frame(_ number: Int) async throws -> CGImage? {
+      let step = steps[number]
+      var image: CGImage?
+      if step.phase == 0 || drawer == nil {
+        image = number == 0 ? firstImage : decode(pngs[step.index])
+      } else if let drawer {
+        image = try await drawer.between(try source(step.index), try source(step.index + 1), phase: step.phase)
+      }
+      // frames are drawn in between at the small size, then each is made larger
+      if let scaler, let small = image { image = try await scaler.upscale(small) }
+      return image
+    }
     do {
-      try await write(
-        count: plan.frames.count, first: firstImage, fps: Double(plan.fps), to: url, format: format
-      ) { number in
-        let step = plan.frames[number]
-        if step.phase == 0 { return decode(pngs[step.index]) }
-        return try await drawer.between(try source(step.index), try source(step.index + 1), phase: step.phase)
+      guard let opening = try await frame(0) else { throw Failure.unreadableFrame(0) }
+      try await write(count: steps.count, first: opening, fps: Double(plan.fps), to: url, format: format) {
+        try await frame($0)
       }
     } catch let error as FrameInterpolator.Failure {
-      return try await plain(error.localizedDescription)
+      // the finishing touch failed halfway: the model's own frames are still worth a file
+      try await write(pngs: pngs, fps: Double(fps), to: url, format: format)
+      return Written(frames: pngs.count, fps: fps, note: error.localizedDescription)
     }
-    return Written(frames: plan.frames.count, fps: plan.fps, note: nil)
+    return Written(frames: steps.count, fps: plan.fps, note: notes.isEmpty ? nil : notes.joined(separator: ". "))
   }
 
   /// `pngs` are the frames in order, exactly as the engine produced them.
