@@ -205,6 +205,11 @@ extension Studio {
   /// people are surprised by the first time.
   var videoTimeEstimate: String {
     let size = videoSize
+    // a clip already made with this model says more than any formula
+    if let rate = (LilStore.standard.dictionary(forKey: "video.rate") as? [String: Double])?[videoModel] {
+      return Budget.humanTime(
+        VideoTiming.estimate(rate: rate, megapixels: size.megapixels, frames: videoFrames, steps: videoSteps))
+    }
     let one = Budget.seconds(width: size.width, height: size.height, steps: videoSteps)
     // Every frame goes through the model on every step, but they share one pass, so the
     // cost grows with frames rather than multiplying by them outright.

@@ -67,9 +67,69 @@ enum VideoWriter {
     }
   }
 
+  /// What a clip came out as, and why it was left as it was when frames could not be drawn in.
+  struct Written {
+    var frames: Int
+    var fps: Int
+    var note: String?
+  }
+
+  /// `pngs` are the frames in order, exactly as the engine produced them; `finish` says whether
+  /// frames are drawn in between (smoother or longer). If macOS cannot draw them (a size it does
+  /// not take), the clip is written as it is and the reason comes back in `note`: twenty minutes
+  /// of generation are never thrown away over the finishing touch.
+  @available(macOS 26, *)
+  static func write(pngs: [Data], fps: Int, finish: VideoFinish, to url: URL, format: Format) async throws
+    -> Written
+  {
+    guard let first = pngs.first, let firstImage = decode(first) else { throw Failure.noFrames }
+    let plan = finish.plan(frames: pngs.count, fps: fps)
+    func plain(_ note: String?) async throws -> Written {
+      try await write(pngs: pngs, fps: Double(fps), to: url, format: format)
+      return Written(frames: pngs.count, fps: fps, note: note)
+    }
+    guard plan.frames.count != pngs.count || plan.fps != fps else { return try await plain(nil) }
+    let drawer: FrameInterpolator
+    do { drawer = try FrameInterpolator(width: firstImage.width, height: firstImage.height) } catch {
+      return try await plain(error.localizedDescription)
+    }
+    // the two source frames around the one being drawn, in the converter's form
+    var held: [Int: CVPixelBuffer] = [:]
+    func source(_ index: Int) throws -> CVPixelBuffer {
+      if let buffer = held[index] { return buffer }
+      guard let image = decode(pngs[index]) else { throw Failure.unreadableFrame(index) }
+      let buffer = try drawer.source(image)
+      held = held.filter { $0.key >= index - 1 }
+      held[index] = buffer
+      return buffer
+    }
+    do {
+      try await write(
+        count: plan.frames.count, first: firstImage, fps: Double(plan.fps), to: url, format: format
+      ) { number in
+        let step = plan.frames[number]
+        if step.phase == 0 { return decode(pngs[step.index]) }
+        return try await drawer.between(try source(step.index), try source(step.index + 1), phase: step.phase)
+      }
+    } catch let error as FrameInterpolator.Failure {
+      return try await plain(error.localizedDescription)
+    }
+    return Written(frames: plan.frames.count, fps: plan.fps, note: nil)
+  }
+
   /// `pngs` are the frames in order, exactly as the engine produced them.
   static func write(pngs: [Data], fps: Double, to url: URL, format: Format) async throws {
     guard let first = pngs.first, let firstImage = decode(first) else { throw Failure.noFrames }
+    try await write(count: pngs.count, first: firstImage, fps: fps, to: url, format: format) {
+      decode(pngs[$0])
+    }
+  }
+
+  /// The file itself: `count` frames, each asked of `frame` when its turn comes.
+  private static func write(
+    count: Int, first firstImage: CGImage, fps: Double, to url: URL, format: Format,
+    frame: (Int) async throws -> CGImage?
+  ) async throws {
     let width = firstImage.width
     let height = firstImage.height
 
@@ -111,9 +171,9 @@ enum VideoWriter {
       // A whole-number timescale keeps 16 and 24 frames a second exact, with no drift over
       // a long clip.
       let timescale = CMTimeScale((fps * 1000).rounded())
-      for (index, data) in pngs.enumerated() {
+      for index in 0..<count {
         try Task.checkCancellation()
-        guard let image = index == 0 ? firstImage : decode(data) else {
+        guard let image = index == 0 ? firstImage : try await frame(index) else {
           throw Failure.unreadableFrame(index)
         }
         while !input.isReadyForMoreMediaData {

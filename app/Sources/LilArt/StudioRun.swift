@@ -44,6 +44,7 @@ extension Studio {
     var suffix: String
     var fps: Int
     var format: VideoWriter.Format
+    var finish = VideoFinish.asIs
   }
 
 
@@ -224,7 +225,8 @@ extension Studio {
       refinerStart: Float(videoRefinerStart),
       takesImage: takesImageOverridden ? videoTakesImage : nil)
     // LoRAs are not applied to video here, so their trigger words stay out of it too
-    return VideoJob(request: request, suffix: presetSuffix, fps: videoFPS, format: videoFormat)
+    return VideoJob(
+      request: request, suffix: presetSuffix, fps: videoFPS, format: videoFormat, finish: videoFinish)
   }
 
 
@@ -401,6 +403,16 @@ extension Studio {
   }
 
 
+  func rememberVideoRate(_ request: VideoRequest, seconds: Double, frames: Int) {
+    let megapixels = Double(request.width * request.height) / 1_000_000
+    guard let rate = VideoTiming.rate(seconds: seconds, megapixels: megapixels, frames: frames, steps: request.steps)
+    else { return }
+    var all = LilStore.standard.dictionary(forKey: "video.rate") as? [String: Double] ?? [:]
+    all[request.model] = VideoTiming.blended(old: all[request.model], new: rate)
+    LilStore.standard.set(all, forKey: "video.rate")
+  }
+
+
   /// One clip, start to finish: the engine makes the frames, the app makes the file.
   func runVideo(_ job: VideoJob, _ id: Int) async -> Bool {
     running = .video
@@ -426,10 +438,17 @@ extension Studio {
         status = "собираю файл"
         stepText = "\(pngs.count) кадров"
       }
-      try await VideoWriter.write(pngs: pngs, fps: Double(job.fps), to: url, format: job.format)
+      // the model's own time, before any frames are drawn in: that is what the estimate predicts
+      rememberVideoRate(request, seconds: Date().timeIntervalSince(started), frames: pngs.count)
+      if id == runID, job.finish != .asIs { status = "дорисовываю кадры: \(job.finish.label)" }
+      let written = try await VideoWriter.write(
+        pngs: pngs, fps: job.fps, finish: job.finish, to: url, format: job.format)
+      if let note = written.note {
+        notify(Notice(title: "Ролик сохранён как есть", message: Self.capitalized(note)))
+      }
       let clip = Clip(
         url: url, poster: pngs.first.flatMap { NSImage(data: $0) } ?? NSImage(),
-        prompt: request.prompt, seed: request.seed, frames: pngs.count, fps: job.fps,
+        prompt: request.prompt, seed: request.seed, frames: written.frames, fps: written.fps,
         width: request.width, height: request.height, steps: request.steps,
         took: Date().timeIntervalSince(started))
       clips.insert(clip, at: 0)

@@ -543,7 +543,9 @@ struct GenerateBar: View {
   var body: some View {
     HStack(spacing: 8) {
       HWButton(
-        title: s.busy ? "добавить в очередь" : "Сгенерировать", hint: "⌘ ↵", primary: true
+        title: (s.busy ? "добавить в очередь" : "Сгенерировать")
+          + (s.tab == .video && s.videoFinish != .asIs ? " · " + s.videoFinish.label : ""),
+        hint: "⌘ ↵", primary: true
       ) { s.enqueue() }
         // HWButton is drawn by hand and cannot carry a shortcut itself; this invisible
         // button gives ⌘↵ to the main window only, even while the prompt is being typed.
@@ -552,6 +554,29 @@ struct GenerateBar: View {
             .keyboardShortcut(.return, modifiers: .command)
             .opacity(0).frame(width: 0, height: 0)
         }
+
+      if s.tab == .video {
+        // what is done to the clip's frames after the model has made them
+        Menu {
+          Section("после генерации") {
+            ForEach(
+              [VideoFinish.asIs, .smoother(fps: 24), .smoother(fps: 30), .smoother(fps: 60), .longer(times: 2)],
+              id: \.self
+            ) { finish in
+              Button((s.videoFinish == finish ? "✓ " : "") + finish.label) { s.videoFinish = finish }
+            }
+          }
+        } label: {
+          Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
+            .foregroundStyle(P.ink)
+            .frame(width: 40, height: 44)
+            .background(P.panel2)
+            .overlay(Rectangle().stroke(P.line, lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.button).buttonStyle(.plain).fixedSize()
+        .help("Плавнее: macOS дорисует кадры до выбранной частоты, длина та же. Длиннее: дорисует кадры между, ролик вдвое дольше и вдвое медленнее. Как есть: только кадры модели")
+      }
 
       if s.busy || s.queued > 0 {
         HWButton(title: "", symbol: "stop.fill", primary: true, fixedWidth: 54) {

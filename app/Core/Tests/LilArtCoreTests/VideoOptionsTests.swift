@@ -67,3 +67,44 @@ import Testing
     #expect(VideoFamily.wanLarge.frames(forSeconds: 3, fps: 16) == VideoFamily.wanLarge.snap(frames: 48))
   }
 }
+
+@Suite struct FreeFramesTests {
+  /// Retrained models go past the length the original was trained for; the grid still holds.
+  @Test func aTypedCountMayGoPastTheTrainedLengthButStaysOnTheGrid() {
+    #expect(VideoFamily.wanLarge.snap(frames: 121, free: true) == 121)
+    #expect(VideoFamily.wanLarge.snap(frames: 120, free: true) == 121)
+    #expect(VideoFamily.wanLarge.snap(frames: 200, free: true) == 201)
+  }
+
+  @Test func evenFreeItIsNeverShorterThanTheModelTakesNorAbsurdlyLong() {
+    #expect(VideoFamily.wanLarge.snap(frames: 0, free: true) == 5)
+    #expect(VideoFamily.wanLarge.snap(frames: 100_000, free: true) == 1001)
+  }
+
+  @Test func theSliderStillStopsAtTheTrainedLength() {
+    #expect(VideoFamily.wanLarge.snap(frames: 121) == 81)
+  }
+}
+
+@Suite struct VideoTimingTests {
+  /// The real case: 1024×576, 81 frames, 8 steps took 17 min 54 s.
+  @Test func aMeasuredClipPredictsTheSameClipExactly() {
+    let rate = VideoTiming.rate(seconds: 1074, megapixels: 0.59, frames: 81, steps: 8)!
+    #expect(abs(VideoTiming.estimate(rate: rate, megapixels: 0.59, frames: 81, steps: 8) - 1074) < 0.001)
+  }
+
+  @Test func halfTheFramesTakeHalfTheTime() {
+    let rate = VideoTiming.rate(seconds: 1000, megapixels: 0.5, frames: 80, steps: 8)!
+    #expect(abs(VideoTiming.estimate(rate: rate, megapixels: 0.5, frames: 40, steps: 8) - 500) < 0.001)
+  }
+
+  @Test func aNewMeasureMovesTheRememberedRateHalfway() {
+    #expect(VideoTiming.blended(old: 2, new: 4) == 3)
+    #expect(VideoTiming.blended(old: nil, new: 4) == 4)
+  }
+
+  @Test func aRunThatMeasuredNothingIsNotARate() {
+    #expect(VideoTiming.rate(seconds: 0, megapixels: 0.5, frames: 81, steps: 8) == nil)
+    #expect(VideoTiming.rate(seconds: 100, megapixels: 0, frames: 81, steps: 8) == nil)
+  }
+}

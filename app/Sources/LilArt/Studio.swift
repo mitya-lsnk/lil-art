@@ -107,6 +107,10 @@ final class Studio: ObservableObject {
   @Published var videoFPS = 16
   /// A frame count typed in PRO; nil while the length follows the duration slider.
   @Published var videoManualFrames: Int?
+  /// What is done to the frames after the model: nothing, smoother, longer.
+  @Published var videoFinish = VideoFinish(text: LilStore.standard.string(forKey: "video.finish")) {
+    didSet { LilStore.standard.set(videoFinish.text, forKey: "video.finish") }
+  }
   @Published var videoFormat: VideoWriter.Format = {
     let raw = LilStore.standard.string(forKey: "video.format") ?? ""
     return VideoWriter.Format(rawValue: raw) ?? .h264

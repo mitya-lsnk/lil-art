@@ -165,14 +165,16 @@ enum VideoFamily: String, Hashable {
     snap(frames: Int((seconds * Double(fps)).rounded()))
   }
 
-  /// Any count of frames, moved to the nearest length the model takes and kept within what it
-  /// was trained for.
-  func snap(frames wanted: Int) -> Int {
+  /// Any count of frames, moved to the nearest length the model takes. The slider keeps within
+  /// what the model was trained for; a count typed by hand (`free`) may go past it, because
+  /// retrained models do, and stops only at a length no Mac would finish.
+  func snap(frames wanted: Int, free: Bool = false) -> Int {
     if let fixed = fixedFrames { return fixed }
+    let limit = free ? 1001 : maxFrames
     let groups = Int((Double(wanted - frameOffset) / Double(frameStep)).rounded())
     let snapped = frameOffset + groups * frameStep
-    // maxFrames itself has to sit on the grid, or the clamp would hand back an illegal length
-    let top = frameOffset + max(0, (maxFrames - frameOffset) / frameStep) * frameStep
+    // the limit itself has to sit on the grid, or the clamp would hand back an illegal length
+    let top = frameOffset + max(0, (limit - frameOffset) / frameStep) * frameStep
     return max(minFrames, min(top, snapped))
   }
 
@@ -338,5 +340,24 @@ enum RefinerPrefs {
     var all = (LilStore.standard.dictionary(forKey: key) as? [String: [String: Any]]) ?? [:]
     all[model] = ["file": file, "start": start]
     LilStore.standard.set(all, forKey: key)
+  }
+}
+
+/// How long a clip takes, learned from the clips already made: seconds per megapixel, frame and
+/// step for each model. A guessed formula was off by more than twice (7:47 said, 17:54 taken).
+enum VideoTiming {
+  static func rate(seconds: Double, megapixels: Double, frames: Int, steps: Int) -> Double? {
+    let work = megapixels * Double(frames) * Double(steps)
+    guard seconds > 0, work > 0 else { return nil }
+    return seconds / work
+  }
+
+  static func estimate(rate: Double, megapixels: Double, frames: Int, steps: Int) -> Double {
+    rate * megapixels * Double(frames) * Double(steps)
+  }
+
+  /// One odd run (a busy Mac) should not swing the estimate all the way.
+  static func blended(old: Double?, new: Double) -> Double {
+    old.map { ($0 + new) / 2 } ?? new
   }
 }
