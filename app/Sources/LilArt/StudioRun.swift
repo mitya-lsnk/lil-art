@@ -61,6 +61,14 @@ extension Studio {
 
   func enqueue() {
     guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+    if let message = ModelsFolder.unavailableMessage(modelsDir) {
+      status = "диск с моделями не подключён"
+      notify(
+        Notice(
+          title: "Диск с моделями не подключён", message: message,
+          actions: [.init("Диск подключён, запустить", .restartEngine)]))
+      return
+    }
     guard engineHost.ready else {
       status = engineHost.installed ? "движок ещё не готов" : "движок не установлен"
       notify(

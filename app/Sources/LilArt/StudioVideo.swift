@@ -21,6 +21,14 @@ extension Studio {
     Task { await loadStills() }
     Task { [weak self] in
       guard let self else { return }
+      if let message = ModelsFolder.unavailableMessage(self.modelsDir) {
+        self.status = "диск с моделями не подключён"
+        self.notify(
+          Notice(
+            title: "Диск с моделями не подключён", message: message,
+            actions: [.init("Диск подключён, запустить", .restartEngine)]))
+        return
+      }
       // The engine is a separate program; there is nothing to warm until it answers.
       for _ in 0..<30 {
         if self.engineHost.ready { break }

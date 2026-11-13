@@ -260,6 +260,8 @@ extension Studio {
       await engine.release()
       engineHost.stop()
       try? await Task.sleep(nanoseconds: 500_000_000)
+      // a disk plugged in since the launch: its models are listed again
+      library.rescan()
       engineHost.start(modelsDir: modelsDir)
     }
   }
