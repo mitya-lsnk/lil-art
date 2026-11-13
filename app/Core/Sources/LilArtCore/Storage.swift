@@ -13,11 +13,14 @@ enum ModelsFolder {
       ? .standard : (UserDefaults(suiteName: "com.lil.art") ?? .standard)
   }
 
-  static let defaultURL = FileManager.default.homeDirectoryForCurrentUser
-    .appendingPathComponent("lil-art/models")
+  /// The folder the person chose, or `models` inside the project.
+  static func resolve(stored: String?, root: URL) -> URL {
+    if let stored, !stored.isEmpty { return URL(fileURLWithPath: stored) }
+    return ProjectRoot.Places(root: root).models
+  }
 
   static var url: URL {
-    store.string(forKey: "models.folder").map { URL(fileURLWithPath: $0) } ?? defaultURL
+    resolve(stored: store.string(forKey: "models.folder"), root: ProjectRoot.url)
   }
 
   static func setURL(_ url: URL?) {
@@ -31,6 +34,16 @@ enum ModelsFolder {
 
   static func setExternal(_ url: URL?) {
     store.set(url?.standardizedFileURL.path, forKey: "models.external")
+  }
+
+  /// What to tell the person while the models folder cannot be used: it lies on a disk that is
+  /// not plugged in. Meanwhile nothing is made there and nothing is fetched, so the models are
+  /// all still there when the disk is back. nil when the folder is fine.
+  static func unavailableMessage(_ folder: URL, reachable: (URL) -> Bool = isReachable) -> String? {
+    guard !reachable(folder) else { return nil }
+    let disk = volumeName(of: folder) ?? folder.path
+    return "Диск «\(disk)» с моделями не подключён. Подключите его и запустите движок снова: "
+      + "модели на нём целы, заново ничего не скачивается"
   }
 
   /// "/Volumes/T7/…" belongs to the disk T7; anything else is on the Mac.
