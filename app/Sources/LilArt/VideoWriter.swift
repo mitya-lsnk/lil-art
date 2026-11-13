@@ -80,7 +80,7 @@ enum VideoWriter {
   /// of generation are never thrown away over the finishing touch.
   @available(macOS 26, *)
   static func write(
-    pngs: [Data], fps: Int, finish: VideoFinish, upscale: VideoUpscale = .none, to url: URL, format: Format
+    pngs: [Data], fps: Int, finish: VideoFinish, to url: URL, format: Format
   ) async throws -> Written {
     guard let first = pngs.first, let firstImage = decode(first) else { throw Failure.noFrames }
     var notes: [String] = []
@@ -92,12 +92,6 @@ enum VideoWriter {
         notes.append(error.localizedDescription)
         plan = VideoFinish.asIs.plan(frames: pngs.count, fps: fps)
       }
-    }
-    var scaler: FrameUpscaler?
-    if upscale != .none {
-      do {
-        scaler = try FrameUpscaler(width: firstImage.width, height: firstImage.height, factor: upscale.rawValue)
-      } catch { notes.append(error.localizedDescription) }
     }
     // the two source frames around the one being drawn, in the converter's form
     var held: [Int: CVPixelBuffer] = [:]
@@ -118,8 +112,6 @@ enum VideoWriter {
       } else if let drawer {
         image = try await drawer.between(try source(step.index), try source(step.index + 1), phase: step.phase)
       }
-      // frames are drawn in between at the small size, then each is made larger
-      if let scaler, let small = image { image = try await scaler.upscale(small) }
       return image
     }
     do {

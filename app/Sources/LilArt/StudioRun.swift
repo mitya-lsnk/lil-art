@@ -45,7 +45,6 @@ extension Studio {
     var fps: Int
     var format: VideoWriter.Format
     var finish = VideoFinish.asIs
-    var upscale = VideoUpscale.none
   }
 
 
@@ -236,8 +235,7 @@ extension Studio {
       takesImage: takesImageOverridden ? videoTakesImage : nil)
     // LoRAs are not applied to video here, so their trigger words stay out of it too
     return VideoJob(
-      request: request, suffix: presetSuffix, fps: videoFPS, format: videoFormat, finish: videoFinish,
-      upscale: videoUpscale)
+      request: request, suffix: presetSuffix, fps: videoFPS, format: videoFormat, finish: videoFinish)
   }
 
 
@@ -471,13 +469,9 @@ extension Studio {
       }
       // the model's own time, before any frames are drawn in: that is what the estimate predicts
       rememberVideoRate(request, seconds: Date().timeIntervalSince(started), frames: pngs.count)
-      if id == runID, job.finish != .asIs || job.upscale != .none {
-        status = "дорабатываю ролик: "
-          + [job.finish == .asIs ? nil : job.finish.label, job.upscale == .none ? nil : job.upscale.label]
-          .compactMap { $0 }.joined(separator: ", ")
-      }
+      if id == runID, job.finish != .asIs { status = "дорисовываю кадры: \(job.finish.label)" }
       let written = try await VideoWriter.write(
-        pngs: pngs, fps: job.fps, finish: job.finish, upscale: job.upscale, to: url, format: job.format)
+        pngs: pngs, fps: job.fps, finish: job.finish, to: url, format: job.format)
       if let note = written.note {
         notify(Notice(title: "Ролик сохранён как есть", message: Self.capitalized(note)))
       }

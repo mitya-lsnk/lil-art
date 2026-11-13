@@ -544,8 +544,7 @@ struct GenerateBar: View {
     HStack(spacing: 8) {
       HWButton(
         title: (s.busy ? "добавить в очередь" : "Сгенерировать")
-          + (s.tab == .video && s.videoFinish != .asIs ? " · " + s.videoFinish.label : "")
-          + (s.tab == .video && s.videoUpscale != .none ? " · ×" + s.videoUpscale.text : ""),
+          + (s.tab == .video && s.videoFinish != .asIs ? " · " + s.videoFinish.label : ""),
         hint: "⌘ ↵", primary: true
       ) { s.enqueue() }
         // HWButton is drawn by hand and cannot carry a shortcut itself; this invisible
@@ -565,11 +564,6 @@ struct GenerateBar: View {
               id: \.self
             ) { finish in
               Button((s.videoFinish == finish ? "✓ " : "") + finish.label) { s.videoFinish = finish }
-            }
-          }
-          Section("размер готового ролика") {
-            ForEach(VideoUpscale.allCases, id: \.self) { choice in
-              Button((s.videoUpscale == choice ? "✓ " : "") + choice.label) { s.videoUpscale = choice }
             }
           }
         } label: {
