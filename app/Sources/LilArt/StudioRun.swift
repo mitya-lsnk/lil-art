@@ -82,6 +82,15 @@ extension Studio {
       return
     }
     if tab == .video {
+      // said before the wait, not after it: a clip that does not fit runs through the disk
+      if videoMemoryGB > Mem.machineGB - 4 {
+        notify(
+          Notice(
+            title: "Ролику не хватит памяти",
+            message: String(
+              format: "Нужно около %.0f ГБ, у Mac %.0f. Он посчитается, но через диск: в разы медленнее и с записью на SSD. Меньше кадров или размер кадра — быстрее",
+              videoMemoryGB, Mem.machineGB)))
+      }
       guard let job = makeVideoJob() else {
         status = "видеомодели нет"
         notify(

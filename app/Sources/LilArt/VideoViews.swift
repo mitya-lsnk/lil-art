@@ -304,15 +304,22 @@ struct LengthRow: View {
       HStack {
         Cap(text: "длительность")
         Spacer()
-        Text(s.videoLengthLabel).font(.mono(10, .semibold)).foregroundStyle(P.ink)
-          .monospacedDigit()
+        Text(String(format: "%.1f с", Double(s.videoFrames) / Double(max(1, s.videoFPS))))
+          .font(.mono(10, .semibold)).foregroundStyle(P.ink).monospacedDigit()
       }
-      Slider(
-        // moving the slider takes the length back from a typed frame count
-        value: Binding(get: { s.videoSeconds }, set: { s.videoManualFrames = nil; s.videoSeconds = $0 }),
-        in: 1...max(1.5, s.videoFamily?.maxSeconds ?? 5)
-      )
-      .tint(P.accent).controlSize(.small)
+      // two numbers instead of a slider: how many frames the model makes, and how fast they play
+      HStack(spacing: 10) {
+        VStack(alignment: .leading, spacing: 7) {
+          Cap(text: "кадров")
+          NumberField(value: Binding(get: { s.videoFrames }, set: { s.setVideoFrames($0) }))
+            .disabled(s.videoFixedLength)
+        }
+        VStack(alignment: .leading, spacing: 7) {
+          Cap(text: "fps")
+          NumberField(value: Binding(
+            get: { s.videoFPS }, set: { s.videoFPS = max(1, min(60, $0)) }))
+        }
+      }
     }
   }
 }
@@ -411,16 +418,6 @@ struct VideoProBlock: View {
           DecimalField(
             value: Binding(get: { Double(s.videoShift) }, set: { s.videoShift = Float($0) }),
             range: 0...20)
-        }
-        VStack(alignment: .leading, spacing: 7) {
-          Cap(text: "кадров")
-          NumberField(value: Binding(get: { s.videoFrames }, set: { s.setVideoFrames($0) }))
-            .disabled(s.videoFixedLength)
-        }
-        VStack(alignment: .leading, spacing: 7) {
-          Cap(text: "кадров в секунду")
-          NumberField(value: Binding(
-            get: { s.videoFPS }, set: { s.videoFPS = max(1, min(60, $0)) }))
         }
       }
       Text("shift растягивает расписание шума: выше — плавнее движение, ниже — резче")

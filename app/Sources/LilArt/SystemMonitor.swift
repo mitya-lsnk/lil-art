@@ -290,6 +290,78 @@ private final class ThermalReader {
       guard value > 0, value < 130 else { continue }
       hottest = max(hottest ?? value, value)
     }
+    // The board sensors above read several degrees under the cores themselves, which is what
+    // menu-bar monitors show; the hotter of the two is the honest number.
+    if let cores = chip?.hottest() { hottest = max(hottest ?? cores, cores) }
     return hottest
   }
+
+  private let chip = ChipSensors()
+}
+
+/// The temperature sensors inside the CPU and GPU cores (SMC keys "Tp…" and "Tg…").
+private final class ChipSensors {
+  private struct Version { var major: UInt8 = 0, minor: UInt8 = 0, build: UInt8 = 0, reserved: UInt8 = 0, release: UInt16 = 0 }
+  private struct Limits { var version: UInt16 = 0, length: UInt16 = 0, cpu: UInt32 = 0, gpu: UInt32 = 0, mem: UInt32 = 0 }
+  private struct KeyInfo { var size: UInt32 = 0, type: UInt32 = 0, attributes: UInt8 = 0 }
+  private struct Param {
+    var key: UInt32 = 0, version = Version(), limits = Limits(), info = KeyInfo(), padding: UInt16 = 0
+    var result: UInt8 = 0, status: UInt8 = 0, data8: UInt8 = 0, data32: UInt32 = 0
+    var bytes: (
+      UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8,
+      UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8, UInt8
+    ) = (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+  }
+
+  private var connection: io_connect_t = 0
+  private var keys: [UInt32] = []
+
+  init?() {
+    let service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceMatching("AppleSMC"))
+    guard service != 0 else { return nil }
+    defer { IOObjectRelease(service) }
+    guard IOServiceOpen(service, mach_task_self_, 0, &connection) == kIOReturnSuccess else { return nil }
+    // the list is read once: thousands of keys, of which a few dozen are core temperatures
+    guard let count = read(0x234B_4559) else { return }  // "#KEY"
+    let total = Int(count.bytes.0) << 24 | Int(count.bytes.1) << 16 | Int(count.bytes.2) << 8 | Int(count.bytes.3)
+    for index in 0..<min(total, 6000) {
+      var input = Param()
+      input.data8 = 8
+      input.data32 = UInt32(index)
+      guard let key = call(&input)?.key else { continue }
+      let prefix = key >> 16
+      if (prefix == 0x5470 || prefix == 0x5467), temperature(key) != nil { keys.append(key) }  // "Tp", "Tg"
+    }
+  }
+
+  deinit { if connection != 0 { IOServiceClose(connection) } }
+
+  private func call(_ input: inout Param) -> Param? {
+    var output = Param()
+    var size = MemoryLayout<Param>.stride
+    let result = IOConnectCallStructMethod(connection, 2, &input, MemoryLayout<Param>.stride, &output, &size)
+    return result == kIOReturnSuccess && output.result == 0 ? output : nil
+  }
+
+  private func read(_ key: UInt32) -> Param? {
+    var input = Param()
+    input.key = key
+    input.data8 = 9
+    guard let info = call(&input) else { return nil }
+    input.info.size = info.info.size
+    input.data8 = 5
+    guard var output = call(&input) else { return nil }
+    output.info = info.info
+    return output
+  }
+
+  private func temperature(_ key: UInt32) -> Double? {
+    guard let value = read(key), value.info.type == 0x666C_7420, value.info.size == 4 else { return nil }  // "flt "
+    let bits = UInt32(value.bytes.0) | UInt32(value.bytes.1) << 8 | UInt32(value.bytes.2) << 16
+      | UInt32(value.bytes.3) << 24
+    let degrees = Double(Float(bitPattern: bits))
+    return degrees > 0 && degrees < 130 ? degrees : nil
+  }
+
+  func hottest() -> Double? { keys.compactMap(temperature).max() }
 }

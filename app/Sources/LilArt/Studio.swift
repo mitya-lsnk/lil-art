@@ -105,7 +105,7 @@ final class Studio: ObservableObject {
   @Published var videoRefinerStart: Double = 0.1
   /// Playback speed of the finished file. Prefilled from the model, changeable in PRO.
   @Published var videoFPS = 16
-  /// A frame count typed in PRO; nil while the length follows the duration slider.
+  /// The frame count typed in; nil until then, when the model's usual three seconds are offered.
   @Published var videoManualFrames: Int?
   /// What is done to the frames after the model: nothing, smoother, longer.
   @Published var videoFinish = VideoFinish(text: LilStore.standard.string(forKey: "video.finish")) {

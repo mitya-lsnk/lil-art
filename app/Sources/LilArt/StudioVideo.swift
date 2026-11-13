@@ -100,7 +100,7 @@ extension Studio {
 
   var videoFrames: Int {
     guard let family = videoFamily else { return 49 }
-    if videoPro, let typed = videoManualFrames { return family.snap(frames: typed, free: true) }
+    if let typed = videoManualFrames { return family.snap(frames: typed, free: true) }
     return family.frames(forSeconds: videoSeconds, fps: videoFPS)
   }
 
