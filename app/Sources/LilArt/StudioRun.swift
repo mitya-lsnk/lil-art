@@ -83,13 +83,13 @@ extension Studio {
     }
     if tab == .video {
       // said before the wait, not after it: a clip that does not fit runs through the disk
-      if videoMemoryGB > Mem.machineGB - 4 {
+      if videoMemoryGB > VideoBudget.limitGB(machineGB: Mem.machineGB) {
         notify(
           Notice(
             title: "Ролику не хватит памяти",
             message: String(
-              format: "Нужно около %.0f ГБ, у Mac %.0f. Он посчитается, но через диск: в разы медленнее и с записью на SSD. Меньше кадров или размер кадра — быстрее",
-              videoMemoryGB, Mem.machineGB)))
+              format: "Нужно около %.0f ГБ, видеочипу доступно около %.0f. Он посчитается, но через диск: в разы медленнее и с записью на SSD. Под полем «кадров» написано, сколько влезает",
+              videoMemoryGB, VideoBudget.limitGB(machineGB: Mem.machineGB))))
       }
       guard let job = makeVideoJob() else {
         status = "видеомодели нет"
@@ -232,10 +232,9 @@ extension Studio {
       shift: videoShift, inputs: inputs, parts: partsInUse(for: videoEntry),
       tweaks: tweaksInUse(for: videoEntry, masked: false), refiner: videoRefinerInUse?.file,
       refinerStart: Float(videoRefinerStart),
-      takesImage: takesImageOverridden ? videoTakesImage : nil)
-    // LoRAs are not applied to video here, so their trigger words stay out of it too
+      loras: videoLoRAs, takesImage: takesImageOverridden ? videoTakesImage : nil)
     return VideoJob(
-      request: request, suffix: presetSuffix, fps: videoFPS, format: videoFormat, finish: videoFinish)
+      request: request, suffix: videoLoraSuffix + presetSuffix, fps: videoFPS, format: videoFormat, finish: videoFinish)
   }
 
 

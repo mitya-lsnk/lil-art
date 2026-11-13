@@ -31,7 +31,7 @@ struct ModelsWindow: View {
         InstalledPane(s: s, library: library)
       }
     }
-    .frame(minWidth: 720, minHeight: 520)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .dropDestination(for: URL.self) { urls, _ in
       library.add(urls)
       library.catalogTab = false

@@ -71,3 +71,37 @@ enum CachePolicy {
     return min(chosen, safeGB(machineGB: machineGB, modelGB: modelGB))
   }
 }
+
+/// Which half of a two-model video (Wan 2.2: high, then low) a LoRA acts on.
+enum LoRAStage: String, CaseIterable, Hashable {
+  case both, high, low
+
+  init(saved: String?) { self = saved.flatMap(LoRAStage.init(rawValue:)) ?? .both }
+
+  var label: String {
+    switch self {
+    case .both: return "обе"
+    case .high: return "high"
+    case .low: return "low"
+    }
+  }
+
+  struct Saved: Equatable {
+    var file: String
+    var weight: Double
+    var stage: LoRAStage
+
+    static func encode(_ picks: [Saved]) -> [[String: Any]] {
+      picks.map { ["file": $0.file, "weight": $0.weight, "stage": $0.stage.rawValue] }
+    }
+
+    static func decode(_ raw: Any?) -> [Saved] {
+      (raw as? [[String: Any]] ?? []).compactMap { item in
+        guard let file = item["file"] as? String, !file.isEmpty else { return nil }
+        return Saved(
+          file: file, weight: (item["weight"] as? NSNumber)?.doubleValue ?? 0.6,
+          stage: LoRAStage(saved: item["stage"] as? String))
+      }
+    }
+  }
+}

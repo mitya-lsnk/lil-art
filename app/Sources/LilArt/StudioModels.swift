@@ -39,6 +39,8 @@ struct LoRAPick: Identifiable, Hashable {
   let id = UUID()
   var file: String
   var weight: Double = 0.6
+  /// Video with two models only: the half this LoRA acts on.
+  var stage = LoRAStage.both
 }
 /// A picture handed to the model alongside the prompt.
 enum RefRole: String, CaseIterable, Hashable {
@@ -134,11 +136,12 @@ struct Recommended: Sendable, Equatable {
   var defaults: [String: Double] = [:]
 }
 enum SettingsPage: Hashable, CaseIterable {
-  case general, prompt, translation, engine, look, about
+  case general, models, prompt, translation, engine, look, about
 
   var title: String {
     switch self {
     case .general: return "Общие"
+    case .models: return "Модели"
     case .prompt: return "Prompt"
     case .translation: return "Перевод"
     case .engine: return "Движок"
@@ -149,6 +152,7 @@ enum SettingsPage: Hashable, CaseIterable {
   var symbol: String {
     switch self {
     case .general: return "gearshape"
+    case .models: return "shippingbox"
     case .prompt: return "text.cursor"
     case .translation: return "character.bubble"
     case .engine: return "cpu"
@@ -259,6 +263,7 @@ struct VideoRequest {
   /// `refinerStart` of the way (the engine unloads the first before loading this one).
   var refiner: String? = nil
   var refinerStart: Float = 0.1
+  var loras: [LoRA]? = nil
   /// Set when the person overrode whether the model takes a picture.
   var takesImage: Bool? = nil
 }

@@ -108,6 +108,7 @@ actor Engine {
     p.configuration.steps = r.steps
     p.configuration.guidanceScale = r.cfg
     p.configuration.numFrames = r.frames
+    p.configuration.loras = Self.merge(r.loras, into: loaded.1)
     p.configuration.batchCount = 1
     p.configuration.batchSize = 1
     if let sampler = r.sampler { p.configuration.sampler = sampler }

@@ -26,13 +26,6 @@ struct LilArtApp: App {
       CommandGroup(replacing: .appSettings) { SettingsCommand() }
     }
 
-    Window("Модели", id: "models") {
-      if #available(macOS 26, *) {
-        ModelsWindow(s: holder.studio)
-      }
-    }
-    .defaultSize(width: 880, height: 640)
-
     // an ordinary window rather than the Settings scene, whose toolbar tabs cannot take the
     // studio's look
     Window("Настройки", id: "settings") {

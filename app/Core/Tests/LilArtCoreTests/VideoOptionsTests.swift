@@ -108,3 +108,32 @@ import Testing
     #expect(VideoTiming.rate(seconds: 100, megapixels: 0, frames: 81, steps: 8) == nil)
   }
 }
+
+@Suite struct VideoBudgetTests {
+  /// The real case: two 13.4 GB experts, 896×704, 121 frames came to 25.1 GB in the engine.
+  @Test func theFormulaMatchesWhatTheEngineReallyTook() {
+    let need = VideoBudget.needGB(modelGB: 13.4, megapixels: 0.631, frames: 121)
+    #expect(abs(need - 25.1) < 0.3)
+  }
+
+  @Test func theMostFramesThatFitIsOnTheModelsGridAndWithinTheLimit() {
+    let most = VideoBudget.maxFrames(modelGB: 13.4, megapixels: 0.631, limitGB: 18, family: .wanLarge)
+    #expect(most == 33)
+    #expect(VideoBudget.needGB(modelGB: 13.4, megapixels: 0.631, frames: most) <= 18)
+    #expect(VideoBudget.needGB(modelGB: 13.4, megapixels: 0.631, frames: most + 4) > 18)
+  }
+
+  @Test func aSmallerFrameLeavesRoomForMoreOfThem() {
+    let small = VideoBudget.maxFrames(modelGB: 13.4, megapixels: 0.307, limitGB: 18, family: .wanLarge)
+    #expect(small > 33)
+  }
+
+  @Test func aModelTooBigForTheLimitGetsTheShortestClip() {
+    #expect(VideoBudget.maxFrames(modelGB: 30, megapixels: 0.5, limitGB: 18, family: .wanLarge) == 5)
+  }
+
+  /// What a Mac can give the video chip without going to disk: three quarters of its memory.
+  @Test func theLimitIsThreeQuartersOfTheMac() {
+    #expect(VideoBudget.limitGB(machineGB: 24) == 18)
+  }
+}

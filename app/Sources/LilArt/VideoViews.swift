@@ -35,6 +35,14 @@ struct VideoSidebar: View {
         QualityRow(s: s)
         if s.videoPro { VideoProSizeBlock(s: s) } else { VideoSizeRow(s: s) }
         if s.videoPro { VideoProBlock(s: s) }
+        if s.videoPro {
+          HStack {
+            Cap(text: "LoRA")
+            Spacer()
+            LilSwitch(isOn: $s.videoLoraOn).scaleEffect(0.75)
+          }
+          if s.videoLoraOn { LoRABlock(s: s, video: true) }
+        }
         VideoSummary(s: s)
       }
     }
@@ -60,7 +68,7 @@ struct NoVideoModels: View {
         s.library.catalogTab = true
         s.catalog.kind = nil
         s.catalog.videoOnly = true
-        openWindow(id: "models")
+        s.openModels(openWindow)
       }
     }
   }
@@ -243,7 +251,7 @@ struct VideoModelRow: View {
             }
           }
           Divider()
-          Button("Модели…") { openWindow(id: "models") }
+          Button("Модели…") { s.openModels(openWindow) }
         } label: {
           DropLabel(
             title: s.videoModels.first(where: { $0.file == s.videoModel })?.name
@@ -318,6 +326,23 @@ struct LengthRow: View {
           Cap(text: "fps")
           NumberField(value: Binding(
             get: { s.videoFPS }, set: { s.videoFPS = max(1, min(60, $0)) }))
+        }
+      }
+      if let fit = s.videoFramesThatFit {
+        // the calculator: how long the clip may be before the Mac goes to disk
+        HStack(spacing: 8) {
+          Text(
+            s.videoFrames > fit
+              ? String(format: "нужно ~%.0f ГБ, без диска влезает до %d кадров", s.videoMemoryGB, fit)
+              : String(format: "~%.0f ГБ · без диска влезает до %d кадров", s.videoMemoryGB, fit)
+          )
+          .font(.mono(9)).tracking(0.3)
+          .foregroundStyle(s.videoFrames > fit ? P.accent : P.muted)
+          .fixedSize(horizontal: false, vertical: true)
+          Spacer(minLength: 4)
+          if s.videoFrames > fit {
+            SmallButton(title: "вписать") { s.setVideoFrames(fit) }
+          }
         }
       }
     }

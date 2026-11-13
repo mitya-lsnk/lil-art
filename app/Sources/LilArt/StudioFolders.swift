@@ -89,33 +89,52 @@ extension Studio {
   }
 
 
+  /// Everything about models (add, catalog, LoRAs, disk) lives on one page of the settings.
+  func openModels(_ open: OpenWindowAction) {
+    settingsPage = .models
+    open(id: "settings")
+  }
+
   var loraFiles: [InstalledModel] { library.loras }
 
-  func addLoRA() {
-    let used = Set(loraPicks.map(\.file))
+  /// A pick lives in the picture list or in the video one; whoever holds it is changed.
+  private func changePick(_ id: UUID, _ change: (inout LoRAPick) -> Void) {
+    if let i = loraPicks.firstIndex(where: { $0.id == id }) { change(&loraPicks[i]) }
+    if let i = videoLoraPicks.firstIndex(where: { $0.id == id }) { change(&videoLoraPicks[i]) }
+  }
+
+  func addLoRA(video: Bool = false) {
+    let used = Set((video ? videoLoraPicks : loraPicks).map(\.file))
     guard let next = loraFiles.first(where: { !used.contains($0.file) }) ?? loraFiles.first
     else { return }
-    loraPicks.append(LoRAPick(file: next.file, weight: LoRAPrefs.weight(for: next.file) ?? 0.6))
+    let pick = LoRAPick(file: next.file, weight: LoRAPrefs.weight(for: next.file) ?? 0.6)
+    if video { videoLoraPicks.append(pick) } else { loraPicks.append(pick) }
   }
 
 
   func removeLoRA(_ pick: LoRAPick) {
     loraPicks.removeAll { $0.id == pick.id }
+    videoLoraPicks.removeAll { $0.id == pick.id }
   }
 
 
   func setLoRA(_ pick: LoRAPick, file: String) {
-    guard let i = loraPicks.firstIndex(where: { $0.id == pick.id }) else { return }
-    loraPicks[i].file = file
-    // each LoRA comes back at the strength it was last used at
-    if let saved = LoRAPrefs.weight(for: file) { loraPicks[i].weight = saved }
+    changePick(pick.id) {
+      $0.file = file
+      // each LoRA comes back at the strength it was last used at
+      if let saved = LoRAPrefs.weight(for: file) { $0.weight = saved }
+    }
   }
 
 
   func setLoRAWeight(_ pick: LoRAPick, _ weight: Double) {
-    guard let i = loraPicks.firstIndex(where: { $0.id == pick.id }) else { return }
-    loraPicks[i].weight = weight
-    LoRAPrefs.setWeight(weight, for: loraPicks[i].file)
+    changePick(pick.id) { $0.weight = weight }
+    LoRAPrefs.setWeight(weight, for: pick.file)
+  }
+
+
+  func setLoRAStage(_ pick: LoRAPick, _ stage: LoRAStage) {
+    changePick(pick.id) { $0.stage = stage }
   }
 
 
@@ -132,6 +151,23 @@ extension Studio {
     guard effectiveLoRAs != nil else { return "" }
     return LoRAPrefs.suffix(
       words: loraPicks.filter { $0.weight != 0 }.map { LoRAPrefs.words(for: $0.file) },
+      alreadyIn: [prompt, englishPrompt])
+  }
+
+  /// The LoRAs of the next clip. With two models each acts on the half it was given.
+  var videoLoRAs: [LoRA]? {
+    guard videoPro, videoLoraOn, !videoLoraPicks.isEmpty else { return nil }
+    let paired = videoRefinerInUse != nil
+    return videoLoraPicks.map { pick in
+      let mode: LoRAMode = !paired ? .all : pick.stage == .high ? .base : pick.stage == .low ? .refiner : .all
+      return LoRA(file: pick.file, weight: Float32(pick.weight), mode: mode)
+    }
+  }
+
+  var videoLoraSuffix: String {
+    guard videoLoRAs != nil else { return "" }
+    return LoRAPrefs.suffix(
+      words: videoLoraPicks.filter { $0.weight != 0 }.map { LoRAPrefs.words(for: $0.file) },
       alreadyIn: [prompt, englishPrompt])
   }
 

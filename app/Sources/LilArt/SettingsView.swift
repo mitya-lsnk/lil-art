@@ -15,6 +15,7 @@ struct SettingsView: View {
       Group {
         switch s.settingsPage {
         case .general: GeneralSettings(s: s)
+        case .models: ModelsWindow(s: s)
         case .prompt: PromptSettings(assist: s.assist)
         case .translation: TranslationSettings(translator: s.translator)
         case .engine: EngineSettings(s: s, engine: s.engineHost)
@@ -28,8 +29,8 @@ struct SettingsView: View {
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    // six tabs: narrower and «О программе» no longer fits its button
-    .frame(width: 680, height: 520)
+    // seven tabs, and the models list needs the room
+    .frame(width: 900, height: 640)
     .lilAppearance()
     .focusEffectDisabled()
   }

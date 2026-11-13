@@ -85,3 +85,27 @@ private func store() -> LilStore {
     #expect(CachePolicy.clamp(18, machineGB: 24, modelGB: 0) == 18)
   }
 }
+
+@Suite struct LoRAStageTests {
+  @Test func aStageSurvivesBeingSavedAndAnUnknownOneMeansBoth() {
+    for stage in LoRAStage.allCases { #expect(LoRAStage(rawValue: stage.rawValue) == stage) }
+    #expect(LoRAStage(saved: "low") == .low)
+    #expect(LoRAStage(saved: "nonsense") == .both)
+    #expect(LoRAStage(saved: nil) == .both)
+  }
+
+  @Test func theLabelsNameTheHalves() {
+    #expect(LoRAStage.allCases.map(\.label) == ["обе", "high", "low"])
+  }
+
+  /// What is kept between launches for the video LoRAs: file, strength, half.
+  @Test func aListOfPicksSurvivesTheSettingsFile() {
+    let picks = [
+      LoRAStage.Saved(file: "fix_high.ckpt", weight: 1, stage: .high),
+      LoRAStage.Saved(file: "style.ckpt", weight: 0.6, stage: .both),
+    ]
+    #expect(LoRAStage.Saved.decode(LoRAStage.Saved.encode(picks)) == picks)
+    #expect(LoRAStage.Saved.decode(nil) == [])
+    #expect(LoRAStage.Saved.decode([["weight": 1.0]]) == [])  // no file, no pick
+  }
+}

@@ -260,7 +260,11 @@ struct UpscaleBlock: View {
 @available(macOS 26, *)
 struct LoRABlock: View {
   @ObservedObject var s: Studio
+  /// The video tab keeps its own list.
+  var video = false
   @Environment(\.openWindow) private var openWindow
+
+  private var picks: [LoRAPick] { video ? s.videoLoraPicks : s.loraPicks }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -268,14 +272,14 @@ struct LoRABlock: View {
         Text("LoRA пока нет. Перетащите .safetensors в окно или откройте «Модели»")
           .font(.mono(9)).tracking(0.3).foregroundStyle(P.muted)
           .fixedSize(horizontal: false, vertical: true)
-        HWButton(title: "Модели…") { openWindow(id: "models") }
+        HWButton(title: "Модели…") { s.openModels(openWindow) }
       } else {
-        ForEach(s.loraPicks) { pick in
-          LoRARow(s: s, pick: pick)
+        ForEach(picks) { pick in
+          LoRARow(s: s, pick: pick, staged: video && s.videoRefinerInUse != nil)
         }
 
         HStack(spacing: 8) {
-          Button { s.addLoRA() } label: {
+          Button { s.addLoRA(video: video) } label: {
             HStack(spacing: 6) {
               Image(systemName: "plus").font(.system(size: 10, weight: .bold))
               Text("ДОБАВИТЬ LORA").font(.mono(9, .bold)).tracking(1)
@@ -296,7 +300,7 @@ struct LoRABlock: View {
       }
     }
     .onAppear {
-      if s.loraPicks.isEmpty, !s.loraFiles.isEmpty { s.addLoRA() }
+      if picks.isEmpty, !s.loraFiles.isEmpty { s.addLoRA(video: video) }
     }
   }
 }
@@ -304,6 +308,8 @@ struct LoRABlock: View {
 struct LoRARow: View {
   @ObservedObject var s: Studio
   let pick: LoRAPick
+  /// Two models at work: the LoRA may act on one half only.
+  var staged = false
 
   private var title: String {
     s.loraFiles.first { $0.file == pick.file }?.name ?? pick.file
@@ -345,6 +351,18 @@ struct LoRARow: View {
         Text(String(format: "%.2f", pick.weight))
           .font(.mono(10, .semibold)).foregroundStyle(P.ink)
           .frame(width: 38, alignment: .trailing)
+      }
+
+      if staged {
+        HStack(spacing: 10) {
+          Text("МОДЕЛЬ").font(.mono(9)).tracking(0.8).foregroundStyle(P.muted)
+          Segmented(
+            options: LoRAStage.allCases.map { ($0, $0.label) },
+            value: Binding(get: { pick.stage }, set: { s.setLoRAStage(pick, $0) }))
+            .fixedSize()
+          Spacer()
+        }
+        .help("high рисует движение и композицию, low — детали. Лоры-пары ставят каждую на свою половину")
       }
 
       HStack(spacing: 10) {

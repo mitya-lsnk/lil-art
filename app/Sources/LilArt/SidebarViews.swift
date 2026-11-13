@@ -115,7 +115,7 @@ struct ModelRow: View {
             }
           }
           Divider()
-          Button("Модели…") { openWindow(id: "models") }
+          Button("Модели…") { s.openModels(openWindow) }
         } label: {
           DropLabel(
             title: s.models.first(where: { $0.file == s.model })?.name

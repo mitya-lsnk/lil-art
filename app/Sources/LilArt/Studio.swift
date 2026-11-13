@@ -74,6 +74,21 @@ final class Studio: ObservableObject {
   /// LoRA block in pro mode: off by default, several at once, each with its own strength.
   @Published var loraOn = false
   @Published var loraPicks: [LoRAPick] = []
+  /// The video tab has its own LoRAs: they belong to another family of models.
+  @Published var videoLoraOn = LilStore.standard.bool(forKey: "video.loraOn") {
+    didSet { LilStore.standard.set(videoLoraOn, forKey: "video.loraOn") }
+  }
+  @Published var videoLoraPicks: [LoRAPick] = LoRAStage.Saved
+    .decode(LilStore.standard.object(forKey: "video.loras"))
+    .map { LoRAPick(file: $0.file, weight: $0.weight, stage: $0.stage) }
+  {
+    didSet {
+      LilStore.standard.set(
+        LoRAStage.Saved.encode(
+          videoLoraPicks.map { .init(file: $0.file, weight: $0.weight, stage: $0.stage) }),
+        forKey: "video.loras")
+    }
+  }
   @Published var model = "flux_2_klein_4b_q8p.ckpt"
   /// The engine's upscaler, run right after the picture in the same request.
   @Published var upscaleOn = false

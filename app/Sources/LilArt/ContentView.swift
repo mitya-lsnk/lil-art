@@ -62,7 +62,7 @@ struct ContentView: View {
         return true
       }
       s.library.add(files)
-      openWindow(id: "models")
+      s.openModels(openWindow)
       return true
     }
     .task { s.warmUp() }

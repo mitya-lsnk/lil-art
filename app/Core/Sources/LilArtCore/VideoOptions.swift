@@ -361,3 +361,29 @@ enum VideoTiming {
     old.map { ($0 + new) / 2 } ?? new
   }
 }
+
+/// How much memory a clip needs and how long it may be before the Mac starts using the disk.
+/// The numbers were checked on a real run: 896×704, 121 frames, 13.4 GB model took 25.1 GB.
+enum VideoBudget {
+  static let perMegapixelFrameGB = 0.74 * 0.18
+  static let overheadGB = 1.5
+
+  static func needGB(modelGB: Double, megapixels: Double, frames: Int) -> Double {
+    modelGB + perMegapixelFrameGB * megapixels * Double(frames) + overheadGB
+  }
+
+  /// macOS gives the video chip about three quarters of the memory; past that it swaps.
+  static func limitGB(machineGB: Double) -> Double { machineGB * 0.75 }
+
+  /// The longest clip at this size that stays within `limitGB`, on the model's grid of lengths.
+  static func maxFrames(modelGB: Double, megapixels: Double, limitGB: Double, family: VideoFamily) -> Int {
+    let room = limitGB - modelGB - overheadGB
+    guard megapixels > 0, room > 0 else { return family.snap(frames: 0, free: true) }
+    var frames = family.snap(frames: Int(room / (perMegapixelFrameGB * megapixels)), free: true)
+    // snapping rounds to the nearest length, which may be one step over
+    while frames > family.minFrames, needGB(modelGB: modelGB, megapixels: megapixels, frames: frames) > limitGB {
+      frames -= family.frameStep
+    }
+    return max(family.minFrames, frames)
+  }
+}

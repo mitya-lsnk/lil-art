@@ -34,7 +34,7 @@ struct StatusBar: View {
       }
       if let job = s.library.activeJob {
         Rectangle().fill(P.hair).frame(width: 1, height: 14)
-        Button { openWindow(id: "models") } label: {
+        Button { s.openModels(openWindow) } label: {
           Text(
             "ДОБАВЛЯЮ \(job.name.uppercased()) · \(job.stage.label.uppercased())"
               + (job.progress > 0 ? " \(Int(job.progress * 100))%" : ""))
@@ -45,7 +45,7 @@ struct StatusBar: View {
         .help("Открыть окно «Модели»")
       } else if let failed = s.library.jobs.first(where: { $0.failure != nil }) {
         Rectangle().fill(P.hair).frame(width: 1, height: 14)
-        Button { openWindow(id: "models") } label: {
+        Button { s.openModels(openWindow) } label: {
           Text("НЕ ПОЛУЧИЛОСЬ: \(failed.name.uppercased())")
             .font(.mono(9, .bold)).tracking(0.6).foregroundStyle(P.accentText)
             .lineLimit(1).truncationMode(.middle)
@@ -297,7 +297,7 @@ struct NoticeStack: View {
       s.settingsPage = page
       openWindow(id: "settings")
     case .openModels:
-      openWindow(id: "models")
+      s.openModels(openWindow)
     case .useTranslator(let engine):
       s.translator.engine = engine
       s.translate()

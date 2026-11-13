@@ -219,8 +219,20 @@ extension Studio {
   var videoMemoryGB: Double {
     let size = videoSize
     // the engine unloads the first expert before the second: the larger one is what counts
-    let model = Double(max(videoEntry?.bytes ?? 0, videoRefinerInUse?.bytes ?? 0)) / 1_073_741_824
-    return model + Budget.perMegapixelGB * size.megapixels * Double(videoFrames) * 0.18 + 1.5
+    return VideoBudget.needGB(modelGB: videoModelGB, megapixels: size.megapixels, frames: videoFrames)
+  }
+
+  /// The engine unloads the first expert before the second: the larger one is what counts.
+  var videoModelGB: Double {
+    Double(max(videoEntry?.bytes ?? 0, videoRefinerInUse?.bytes ?? 0)) / 1_073_741_824
+  }
+
+  /// The longest clip at the chosen size that stays out of swap; nil while no model is chosen.
+  var videoFramesThatFit: Int? {
+    guard let family = videoFamily, videoModelGB > 0, family.fixedFrames == nil else { return nil }
+    return VideoBudget.maxFrames(
+      modelGB: videoModelGB, megapixels: videoSize.megapixels,
+      limitGB: VideoBudget.limitGB(machineGB: Mem.machineGB), family: family)
   }
 
 
