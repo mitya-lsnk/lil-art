@@ -162,8 +162,13 @@ enum VideoFamily: String, Hashable {
   var minFrames: Int { self == .ltx ? 9 : 5 }
 
   func frames(forSeconds seconds: Double, fps: Int) -> Int {
+    snap(frames: Int((seconds * Double(fps)).rounded()))
+  }
+
+  /// Any count of frames, moved to the nearest length the model takes and kept within what it
+  /// was trained for.
+  func snap(frames wanted: Int) -> Int {
     if let fixed = fixedFrames { return fixed }
-    let wanted = Int((seconds * Double(fps)).rounded())
     let groups = Int((Double(wanted - frameOffset) / Double(frameStep)).rounded())
     let snapped = frameOffset + groups * frameStep
     // maxFrames itself has to sit on the grid, or the clamp would hand back an illegal length

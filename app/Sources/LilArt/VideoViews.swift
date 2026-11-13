@@ -308,7 +308,9 @@ struct LengthRow: View {
           .monospacedDigit()
       }
       Slider(
-        value: $s.videoSeconds, in: 1...max(1.5, s.videoFamily?.maxSeconds ?? 5)
+        // moving the slider takes the length back from a typed frame count
+        value: Binding(get: { s.videoSeconds }, set: { s.videoManualFrames = nil; s.videoSeconds = $0 }),
+        in: 1...max(1.5, s.videoFamily?.maxSeconds ?? 5)
       )
       .tint(P.accent).controlSize(.small)
     }
@@ -409,6 +411,11 @@ struct VideoProBlock: View {
           DecimalField(
             value: Binding(get: { Double(s.videoShift) }, set: { s.videoShift = Float($0) }),
             range: 0...20)
+        }
+        VStack(alignment: .leading, spacing: 7) {
+          Cap(text: "кадров")
+          NumberField(value: Binding(get: { s.videoFrames }, set: { s.setVideoFrames($0) }))
+            .disabled(s.videoFixedLength)
         }
         VStack(alignment: .leading, spacing: 7) {
           Cap(text: "кадров в секунду")

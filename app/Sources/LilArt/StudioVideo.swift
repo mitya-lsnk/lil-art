@@ -100,7 +100,17 @@ extension Studio {
 
   var videoFrames: Int {
     guard let family = videoFamily else { return 49 }
+    if videoPro, let typed = videoManualFrames { return family.snap(frames: typed) }
     return family.frames(forSeconds: videoSeconds, fps: videoFPS)
+  }
+
+  /// PRO: the count is typed; the rate then only says how fast those frames play.
+  func setVideoFrames(_ count: Int) {
+    guard let family = videoFamily else { return }
+    videoManualFrames = family.snap(frames: count)
+    if videoManualFrames != count {
+      status = "кадров \(videoManualFrames ?? count): модель берёт только такие длины, не больше \(family.maxFrames)"
+    }
   }
 
   var videoLengthLabel: String {

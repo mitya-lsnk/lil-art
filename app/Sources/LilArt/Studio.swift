@@ -105,6 +105,8 @@ final class Studio: ObservableObject {
   @Published var videoRefinerStart: Double = 0.1
   /// Playback speed of the finished file. Prefilled from the model, changeable in PRO.
   @Published var videoFPS = 16
+  /// A frame count typed in PRO; nil while the length follows the duration slider.
+  @Published var videoManualFrames: Int?
   @Published var videoFormat: VideoWriter.Format = {
     let raw = LilStore.standard.string(forKey: "video.format") ?? ""
     return VideoWriter.Format(rawValue: raw) ?? .h264

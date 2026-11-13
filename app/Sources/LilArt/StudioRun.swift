@@ -223,7 +223,8 @@ extension Studio {
       tweaks: tweaksInUse(for: videoEntry, masked: false), refiner: videoRefinerInUse?.file,
       refinerStart: Float(videoRefinerStart),
       takesImage: takesImageOverridden ? videoTakesImage : nil)
-    return VideoJob(request: request, suffix: loraSuffix + presetSuffix, fps: videoFPS, format: videoFormat)
+    // LoRAs are not applied to video here, so their trigger words stay out of it too
+    return VideoJob(request: request, suffix: presetSuffix, fps: videoFPS, format: videoFormat)
   }
 
 

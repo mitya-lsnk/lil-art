@@ -148,6 +148,9 @@ extension Studio {
     if tab == .video { speedProfile = profile }
     restoreRefiner(for: entry)
     videoFPS = family.fps
+    videoManualFrames = nil
+    // two 13 GB experts leave no room for kept copies
+    if !busy { applyCache(cacheGB) }
     videoShift = family.shift
     videoSizeIndex = 0
     videoCustomSize = nil
@@ -424,10 +427,13 @@ extension Studio {
 
   /// As much as can be kept without starving the system: everything but 6 GB.
   var maxCacheGB: Double { max(4, (Mem.machineGB - 6).rounded(.down)) }
-  var modelGB: Double { Double(modelBytes) / 1_073_741_824 }
+  /// The heaviest model that may be opened now: the picture one, the video one or its second expert.
+  var modelGB: Double {
+    Double(max(modelBytes, videoEntry?.bytes ?? 0, videoRefinerInUse?.bytes ?? 0)) / 1_073_741_824
+  }
   /// The most the engine may keep between runs with the chosen model.
   var safeCacheGB: Double {
-    modelBytes > 0 ? CachePolicy.safeGB(machineGB: Mem.machineGB, modelGB: modelGB) : maxCacheGB
+    modelGB > 0 ? CachePolicy.safeGB(machineGB: Mem.machineGB, modelGB: modelGB) : maxCacheGB
   }
   var modelBytes: Int64 { library.installed.first { $0.file == model }?.bytes ?? 0 }
 

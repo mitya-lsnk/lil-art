@@ -45,3 +45,25 @@ import Testing
     #expect(SpeedProfile.guess(file: "hunyuan_video_t2v_720p_q8p.ckpt", name: "HunyuanVideo") == .full)
   }
 }
+
+@Suite struct ManualFramesTests {
+  @Test func aTypedCountLandsOnTheNearestLengthTheModelTakes() {
+    // Wan takes 4k + 1 frames
+    #expect(VideoFamily.wanLarge.snap(frames: 48) == 49)
+    #expect(VideoFamily.wanLarge.snap(frames: 50) == 49)
+    #expect(VideoFamily.wanLarge.snap(frames: 33) == 33)
+  }
+
+  @Test func aTypedCountStaysWithinWhatTheModelWasTrainedFor() {
+    #expect(VideoFamily.wanLarge.snap(frames: 500) == 81)
+    #expect(VideoFamily.wanLarge.snap(frames: 1) == 5)
+  }
+
+  @Test func aModelWithOneFixedLengthIgnoresTheTypedCount() {
+    #expect(VideoFamily.svd.snap(frames: 60) == 25)
+  }
+
+  @Test func lengthFromSecondsIsTheSameSnapOfSecondsTimesRate() {
+    #expect(VideoFamily.wanLarge.frames(forSeconds: 3, fps: 16) == VideoFamily.wanLarge.snap(frames: 48))
+  }
+}
