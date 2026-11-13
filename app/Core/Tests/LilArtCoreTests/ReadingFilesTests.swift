@@ -36,6 +36,19 @@ private func picture(
   @Test func aMissingFileHasNoSize() {
     #expect(RegionLayout.pixelSize(URL(fileURLWithPath: "/nonexistent/x.png")) == nil)
   }
+
+  /// The remembered sizes are one table for the whole program: readers on several threads at
+  /// once must neither crash nor get a wrong size.
+  @Test func manyThreadsReadingSizesAtOnceAllGetTheRightAnswer() async {
+    let pictures = (0..<30).map { _ in picture() }
+    let wrong = await withTaskGroup(of: Int.self) { group in
+      for i in 0..<600 {
+        group.addTask { RegionLayout.pixelSize(pictures[i % 30]) == CGSize(width: 4, height: 3) ? 0 : 1 }
+      }
+      return await group.reduce(0, +)
+    }
+    #expect(wrong == 0)
+  }
 }
 
 @Suite struct ReadSettingsFromAFileTests {

@@ -80,10 +80,12 @@ enum RegionLayout {
   }
 
   private static var sizes: [URL: CGSize] = [:]
+  /// One table for the whole program, read from any thread: every touch of it is under this lock.
+  private static let sizesLock = NSLock()
 
   /// A picture's pixel size from its header, without decoding it.
   static func pixelSize(_ url: URL) -> CGSize? {
-    if let known = sizes[url] { return known }
+    if let known = sizesLock.withLock({ sizes[url] }) { return known }
     guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
       let props = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
       var w = props[kCGImagePropertyPixelWidth] as? CGFloat,
@@ -92,7 +94,7 @@ enum RegionLayout {
     // orientations 5…8 are turned a quarter, so the picture shows the other way round
     if let o = props[kCGImagePropertyOrientation] as? Int, o >= 5 { swap(&w, &h) }
     let size = CGSize(width: w, height: h)
-    sizes[url] = size
+    sizesLock.withLock { sizes[url] = size }
     return size
   }
 }
