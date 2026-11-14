@@ -81,27 +81,48 @@ struct PromptBox: View {
 struct LocalModelRow: View {
   @ObservedObject var translator: Translator
 
+  /// The model list drawn at the height of the buttons around it (26), not the 34 of the
+  /// big menus.
+  private func field(_ title: String, chevron: Bool = true) -> some View {
+    HStack(spacing: 0) {
+      Text(title)
+        .font(.mono(10)).tracking(0.5).foregroundStyle(P.ink)
+        .lineLimit(1).truncationMode(.middle)
+        .padding(.horizontal, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      if chevron {
+        Rectangle().fill(P.line).frame(width: 1)
+        Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+          .foregroundStyle(P.ink).frame(width: 24).background(P.panel2)
+      }
+    }
+    .frame(height: 26)
+    .background(P.panel)
+    .overlay(Rectangle().stroke(P.line, lineWidth: 1))
+    .contentShape(Rectangle())
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 8) {
         Text("МОДЕЛЬ").font(.mono(9)).tracking(0.8).foregroundStyle(P.muted)
         if translator.models.isEmpty {
-          Text("список пуст").font(.mono(10)).foregroundStyle(P.muted)
-          Spacer(minLength: 4)
+          field("список пуст", chevron: false).foregroundStyle(P.muted)
         } else {
           Menu {
             ForEach(translator.models, id: \.self) { model in
               Button((translator.customModel == model ? "✓ " : "") + model) { translator.customModel = model }
             }
           } label: {
-            DropLabel(title: translator.customModel.isEmpty ? "выберите" : translator.customModel)
+            field(translator.customModel.isEmpty ? "выберите" : translator.customModel)
           }
           .menuStyle(.button).buttonStyle(.plain)
         }
-        SmallButton(title: translator.checking ? "Проверяю" : "Проверить сервер") {
+        SmallButton(title: translator.checking ? "Проверяю" : "Проверить") {
           Task { await translator.refreshModels() }
         }
         .disabled(translator.checking)
+        .help("Проверить, отвечает ли сервер, и обновить список моделей")
       }
       if !translator.endpointStatus.isEmpty {
         Text(translator.endpointStatus)
