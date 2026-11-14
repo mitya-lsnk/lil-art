@@ -55,6 +55,12 @@ extension Studio {
           title: "\(engine.label) не перевёл",
           message: "Prompt переведён через Apple." + (reason.isEmpty ? "" : " Причина: \(reason)"),
           actions: [.init("Переводить через Apple", .useTranslator(.system))]))
+    case .localFailed(let reason):
+      notify(
+        Notice(
+          title: "Своя модель не перевела",
+          message: TranslationRoute.stopMessage(reason: reason),
+          actions: [.init("Повторить", .retryTranslation), .init("Проверить сервер", .openSettings(.translation))]))
     case .translationFailed:
       var actions: [Notice.Choice] = []
       if translator.engine != .google {

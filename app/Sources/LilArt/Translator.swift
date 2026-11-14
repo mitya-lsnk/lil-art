@@ -23,6 +23,13 @@ final class Translator: ObservableObject {
   /// a trace); a local model does not, and the glossary below puts back what they drop.
   enum Engine: String, Hashable, CaseIterable {
     case google, system, local
+    var provider: TranslationRoute.Provider {
+      switch self {
+      case .google: return .google
+      case .system: return .system
+      case .local: return .local
+      }
+    }
     var label: String {
       switch self {
       case .google: return "Google"
@@ -120,6 +127,7 @@ final class Translator: ObservableObject {
   /// What went wrong, for the notice card with a way out. The note stays for the status bar.
   enum Problem {
     case providerFailed(Engine, String)
+    case localFailed(String)
     case translationFailed
     case enrichFailed(String)
   }
@@ -232,8 +240,12 @@ final class Translator: ObservableObject {
         translated = await viaCustomTranslation(trimmed)
         if translated != nil {
           steps.append("перевела своя модель")
-        } else {
-          onProblem?(.providerFailed(.local, endpointStatus))
+        } else if TranslationRoute.fallbacks(after: .local).isEmpty {
+          // the person chose this model: no other translator takes its place, only the error
+          note = "своя модель не перевела, отдаю как есть"
+          lastEnglish = ""
+          onProblem?(.localFailed(endpointStatus))
+          return text
         }
       }
       if engine == .google {
@@ -244,7 +256,7 @@ final class Translator: ObservableObject {
           onProblem?(.providerFailed(.google, endpointStatus))
         }
       }
-      if translated == nil {
+      if translated == nil, engine == .system || TranslationRoute.fallbacks(after: engine.provider).contains(.system) {
         // a caller that already gave up must not start a system translation nobody waits for
         guard !Task.isCancelled else { return text }
         if let viaApple = await viaSystemTranslator(trimmed) {

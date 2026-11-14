@@ -95,6 +95,9 @@ extension Studio {
     showSettings = true
   }
 
+  /// PRO of the tab in front.
+  var proOnThisTab: Bool { tab == .video ? videoPro : pro }
+
   var loraFiles: [InstalledModel] { library.loras }
 
   /// A pick lives in the picture list or in the video one; whoever holds it is changed.

@@ -68,7 +68,48 @@ struct PromptBox: View {
       .background(P.panel)
       .overlay(RoundedRectangle(cornerRadius: 9).stroke(P.line, lineWidth: 1))
       .clipShape(RoundedRectangle(cornerRadius: 9))
+
+      if s.proOnThisTab, s.translator.engine == .local || s.translator.improver == .local {
+        LocalModelRow(translator: s.translator)
+      }
     }
+  }
+}
+/// PRO, under the prompt: which language model of the local server translates and improves, and
+/// whether the server answers at all.
+@available(macOS 26, *)
+struct LocalModelRow: View {
+  @ObservedObject var translator: Translator
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      HStack(spacing: 8) {
+        Text("МОДЕЛЬ").font(.mono(9)).tracking(0.8).foregroundStyle(P.muted)
+        if translator.models.isEmpty {
+          Text("список пуст").font(.mono(10)).foregroundStyle(P.muted)
+          Spacer(minLength: 4)
+        } else {
+          Menu {
+            ForEach(translator.models, id: \.self) { model in
+              Button((translator.customModel == model ? "✓ " : "") + model) { translator.customModel = model }
+            }
+          } label: {
+            DropLabel(title: translator.customModel.isEmpty ? "выберите" : translator.customModel)
+          }
+          .menuStyle(.button).buttonStyle(.plain)
+        }
+        SmallButton(title: translator.checking ? "Проверяю" : "Проверить сервер") {
+          Task { await translator.refreshModels() }
+        }
+        .disabled(translator.checking)
+      }
+      if !translator.endpointStatus.isEmpty {
+        Text(translator.endpointStatus)
+          .font(.mono(9)).tracking(0.3).foregroundStyle(P.muted)
+          .fixedSize(horizontal: false, vertical: true)
+      }
+    }
+    .onAppear { if translator.models.isEmpty { Task { await translator.refreshModels() } } }
   }
 }
 /// Two buttons that act once, when pressed: «Перевести» makes the English of what is in the
@@ -85,6 +126,18 @@ struct MagicButton: View {
       }
       action("УЛУЧШИТЬ", icon: "wand.and.stars", help: "Перевести и добавить детали света, материалов, объектива") {
         s.translate(improve: true)
+      }
+      if !s.englishPrompt.isEmpty {
+        Button { s.revertTranslation() } label: {
+          Image(systemName: "arrow.uturn.backward").font(.system(size: 10, weight: .bold))
+            .foregroundStyle(P.ink)
+            .frame(width: 30, height: 26)
+            .background(P.panel)
+            .overlay(Rectangle().stroke(P.line, lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Обратить перевод: вернуть Prompt как был написан, без английского")
       }
     }
     .disabled(s.translating)

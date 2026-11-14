@@ -25,6 +25,18 @@ extension Studio {
   }
 
 
+  /// Takes the translation back: the prompt is as it was written, with no English beside it.
+  func revertTranslation() {
+    // a translation still on its way is dropped, not applied afterwards
+    translationRun += 1
+    translating = false
+    englishPrompt = ""
+    englishSource = ""
+    showingEnglish = false
+    status = "перевод убран: Prompt как был написан"
+  }
+
+
   /// A hand-corrected English is what the model reads, for as long as the Russian it was made
   /// from stays as it is.
   func editEnglish(_ text: String) {
