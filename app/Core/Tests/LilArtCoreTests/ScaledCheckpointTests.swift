@@ -80,3 +80,59 @@ private func safetensors(_ header: [String: Any], data: Data = Data(count: 64), 
     #expect(int8[0x80] == -128)
   }
 }
+
+/// The older "scaled fp8" naming (kijai, many Wan and Flux checkpoints): the multiplier of a
+/// layer is `<layer>.scale_weight`, beside an unused `<layer>.scale_input`.
+@Suite struct LegacyScaledNamesTests {
+  /// a.weight = four 8-bit numbers (1, 2, 1, 2), a.scale_weight = 0.5, a.scale_input = 3.
+  private func legacyFile(withMarker: Bool = true) -> URL {
+    var header: [String: Any] = [
+      "a.weight": ["dtype": "F8_E4M3", "shape": [2, 2], "data_offsets": [0, 4]],
+      "a.scale_weight": ["dtype": "F32", "shape": [], "data_offsets": [4, 8]],
+      "a.scale_input": ["dtype": "F32", "shape": [], "data_offsets": [8, 12]],
+      "a.bias": ["dtype": "F32", "shape": [2], "data_offsets": [12, 20]],
+    ]
+    if withMarker { header["scaled_fp8"] = ["dtype": "F8_E4M3", "shape": [0], "data_offsets": [20, 20]] }
+    var data = Data([0x38, 0x40, 0x38, 0x40])
+    for value in [Float(0.5), Float(3), Float(7), Float(8)] {
+      var bits = value.bitPattern.littleEndian
+      withUnsafeBytes(of: &bits) { data.append(contentsOf: $0) }
+    }
+    return safetensors(header, data: data)
+  }
+
+  private func floats(_ url: URL, _ key: String) throws -> [Float] {
+    let header = try #require(ScaledCheckpoint.header(of: url))
+    let entry = try #require(header.entries[key])
+    let bytes = try Data(contentsOf: url)
+    let slice = bytes.subdata(in: (header.dataStart + entry.start)..<(header.dataStart + entry.end))
+    if entry.dtype == "F16" {
+      return stride(from: 0, to: slice.count, by: 2).map {
+        Float(Float16(bitPattern: UInt16(slice[$0]) | UInt16(slice[$0 + 1]) << 8))
+      }
+    }
+    return stride(from: 0, to: slice.count, by: 4).map {
+      Float(bitPattern: UInt32(slice[$0]) | UInt32(slice[$0 + 1]) << 8 | UInt32(slice[$0 + 2]) << 16 | UInt32(slice[$0 + 3]) << 24)
+    }
+  }
+
+  @Test func aFileWithScaleWeightNeedsConvertingWithOrWithoutTheMarker() {
+    #expect(ScaledCheckpoint.needsDequantizing(legacyFile()))
+    #expect(ScaledCheckpoint.needsDequantizing(legacyFile(withMarker: false)))
+  }
+
+  /// The real case: the engine reads the raw 8-bit numbers and paints noise unless the layer's multiplier is applied.
+  @Test func theWeightIsTheEightBitNumbersTimesItsScaleWeight() throws {
+    let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".safetensors")
+    try ScaledCheckpoint.dequantize(legacyFile(), to: out, progress: { _ in })
+    #expect(try floats(out, "a.weight") == [0.5, 1.0, 0.5, 1.0])
+  }
+
+  @Test func theScaleTensorsDoNotTravelOnAndOtherTensorsDo() throws {
+    let out = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString + ".safetensors")
+    try ScaledCheckpoint.dequantize(legacyFile(), to: out, progress: { _ in })
+    let header = try #require(ScaledCheckpoint.header(of: out))
+    #expect(Set(header.entries.keys) == ["a.weight", "a.bias"])
+    #expect(try floats(out, "a.bias") == [7, 8])
+  }
+}

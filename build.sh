@@ -350,8 +350,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleExecutable</key><string>lil art</string>
   <key>CFBundleIdentifier</key><string>com.lil.art</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>0.9.1</string>
-  <key>CFBundleVersion</key><string>15</string>
+  <key>CFBundleShortVersionString</key><string>0.9.2</string>
+  <key>CFBundleVersion</key><string>16</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>13.0</string>
   <key>NSHighResolutionCapable</key><true/>

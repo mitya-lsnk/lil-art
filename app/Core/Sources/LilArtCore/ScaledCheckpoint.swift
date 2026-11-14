@@ -1,7 +1,9 @@
 import Foundation
 
 /// ComfyUI's "fp8 scaled" checkpoints keep most weights as 8-bit floats plus one multiplier per
-/// layer (`weight_scale`), with a small JSON note beside each (`comfy_quant`). The engine's
+/// layer (`weight_scale`), with a small JSON note beside each (`comfy_quant`); the older
+/// "scaled fp8" files (kijai, many Wan and Flux builds) call the multiplier `scale_weight` and add
+/// an unused `scale_input`. The engine's
 /// importer reads the 8-bit numbers but knows nothing of the multipliers, so the weights come out
 /// hundreds of times too large and the model paints pure noise.
 ///
@@ -91,7 +93,9 @@ enum ScaledCheckpoint {
     guard url.pathExtension.lowercased() == "safetensors", let header = header(of: url) else {
       return false
     }
-    let hasScales = header.entries.keys.contains { $0.hasSuffix(".weight_scale") || $0 == "scaled_fp8" }
+    let hasScales = header.entries.keys.contains {
+      $0.hasSuffix(".weight_scale") || $0.hasSuffix(".scale_weight") || $0.hasSuffix("scaled_fp8")
+    }
     let hasEightBit = header.entries.values.contains { eightBit.contains($0.dtype) }
     return hasScales && hasEightBit
   }
@@ -100,7 +104,7 @@ enum ScaledCheckpoint {
 
   private static func isDropped(_ key: String) -> Bool {
     key.hasSuffix(".weight_scale") || key.hasSuffix(".comfy_quant") || key.hasSuffix(".input_scale")
-      || key == "scaled_fp8"
+      || key.hasSuffix(".scale_weight") || key.hasSuffix(".scale_input") || key.hasSuffix("scaled_fp8")
   }
 
   static func dequantize(
@@ -168,7 +172,7 @@ enum ScaledCheckpoint {
     for key in header.entries.keys.sorted() where !isDropped(key) {
       guard let entry = header.entries[key] else { continue }
       let base = key.hasSuffix(".weight") ? String(key.dropLast(".weight".count)) : key
-      let scaleEntry = header.entries[base + ".weight_scale"]
+      let scaleEntry = header.entries[base + ".weight_scale"] ?? header.entries[base + ".scale_weight"]
       let converts = entry.dtype.hasPrefix("F8_") || (entry.dtype == "I8" && scaleEntry != nil)
       var scale: [Float]?
       var bytes = entry.end - entry.start
