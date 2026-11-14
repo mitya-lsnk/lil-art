@@ -198,6 +198,9 @@ final class Studio: ObservableObject {
   @Published var stepFraction = 0.0
   @Published var notices: [Notice] = []
   @Published var settingsPage: SettingsPage = .general
+  /// Settings are a page of the main window, not a window of their own: a second window got
+  /// lost behind others while files were being dragged in.
+  @Published var showSettings = false
   /// Kept by the settings window itself, so the gear can close what it opened.
   /// Whether the pointer is over the picture, where the arrow keys leaf through results.
   var stageHovered = false
@@ -352,7 +355,7 @@ final class Studio: ObservableObject {
     let run = translationRun
     translating = true
     Task {
-      let out = await english(for: text, improve: improve)
+      let out = await english(for: text, improve: improve, frame: improve ? frameForImprover : nil)
       // a newer request since then makes this one history
       guard run == translationRun else { return }
       translating = false
@@ -364,6 +367,11 @@ final class Studio: ObservableObject {
     }
   }
 
+  /// On the video tab the improver is shown the first frame, when the model starts from one.
+  var frameForImprover: URL? {
+    tab == .video && videoTakesImage ? videoFirstFrame?.url : nil
+  }
+
   /// «Улучшить» on the English side: the English on screen, corrections included, gets the detail.
   private func improveEnglishSide(_ text: String) {
     let source = prompt
@@ -371,7 +379,7 @@ final class Studio: ObservableObject {
     let run = translationRun
     translating = true
     Task {
-      let out = await english(for: text, improve: true)
+      let out = await english(for: text, improve: true, frame: frameForImprover)
       guard run == translationRun else { return }
       translating = false
       // the Russian it belongs to must still be in the box, and the English not corrected meanwhile

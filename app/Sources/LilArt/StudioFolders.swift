@@ -90,9 +90,9 @@ extension Studio {
 
 
   /// Everything about models (add, catalog, LoRAs, disk) lives on one page of the settings.
-  func openModels(_ open: OpenWindowAction) {
+  func openModels() {
     settingsPage = .models
-    open(id: "settings")
+    showSettings = true
   }
 
   var loraFiles: [InstalledModel] { library.loras }

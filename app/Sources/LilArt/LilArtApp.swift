@@ -23,26 +23,20 @@ struct LilArtApp: App {
     .commands {
       LilCommands()
       CommandGroup(replacing: .newItem) {}
-      CommandGroup(replacing: .appSettings) { SettingsCommand() }
-    }
-
-    // an ordinary window rather than the Settings scene, whose toolbar tabs cannot take the
-    // studio's look
-    Window("Настройки", id: "settings") {
-      if #available(macOS 26, *) {
-        SettingsView(s: holder.studio)
+      CommandGroup(replacing: .appSettings) {
+        if #available(macOS 26, *) { SettingsCommand(s: holder.studio) }
       }
     }
-    .windowResizability(.contentSize)
   }
 }
 
-/// "Настройки…" in the app menu with the usual ⌘, opening the settings window.
+/// "Настройки…" in the app menu with the usual ⌘,: the settings page of the main window.
+@available(macOS 26, *)
 private struct SettingsCommand: View {
-  @Environment(\.openWindow) private var openWindow
+  @ObservedObject var s: Studio
 
   var body: some View {
-    Button("Настройки…") { openWindow(id: "settings") }
+    Button("Настройки…") { s.showSettings.toggle() }
       .keyboardShortcut(",", modifiers: .command)
   }
 }

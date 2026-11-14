@@ -18,10 +18,19 @@ struct ContentView: View {
       VStack(spacing: 0) {
         TopBar(s: s)
         Divider().overlay(P.line)
-        HStack(spacing: 0) {
-          Sidebar(s: s)
-          Divider().overlay(P.line)
-          Stage(s: s)
+        ZStack {
+          HStack(spacing: 0) {
+            Sidebar(s: s)
+            Divider().overlay(P.line)
+            Stage(s: s)
+          }
+          // settings and models cover the work area of this same window; the work under them
+          // goes on as it was
+          if s.showSettings {
+            SettingsView(s: s)
+              .background(P.bg)
+              .onExitCommand { s.showSettings = false }
+          }
         }
         Divider().overlay(P.line)
         StatusBar(s: s)
@@ -62,7 +71,7 @@ struct ContentView: View {
         return true
       }
       s.library.add(files)
-      s.openModels(openWindow)
+      s.openModels()
       return true
     }
     .task { s.warmUp() }
@@ -206,31 +215,16 @@ private struct SettingsButton: View {
   @Environment(\.openWindow) private var openWindow
 
   var body: some View {
-    // A second click closes the window the first one opened. Whether it is open is asked of
-    // the window itself: SwiftUI does not always report a window closed with its red button,
-    // and a flag kept by hand then stayed "open" forever and the gear could only close.
-    Button {
-      if let window = Self.settingsWindow, window.isVisible {
-        window.performClose(nil)
-      } else {
-        openWindow(id: "settings")
-      }
-    } label: {
-      Image(systemName: "gearshape")
+    Button { s.showSettings.toggle() } label: {
+      Image(systemName: s.showSettings ? "xmark" : "gearshape")
         .font(.system(size: 13))
-        .foregroundStyle(P.ink)
+        .foregroundStyle(s.showSettings ? P.bg : P.ink)
         .frame(width: 30, height: 30)
-        .background(P.panel2)
+        .background(s.showSettings ? P.accent : P.panel2)
         .overlay(Rectangle().stroke(P.line, lineWidth: 1))
         .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .help("Настройки  ⌘,")
-  }
-
-  private static var settingsWindow: NSWindow? {
-    NSApp.windows.first {
-      $0.identifier?.rawValue.hasPrefix("settings") == true || $0.title == "Настройки"
-    }
   }
 }

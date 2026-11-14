@@ -115,7 +115,7 @@ struct ModelRow: View {
             }
           }
           Divider()
-          Button("Модели…") { s.openModels(openWindow) }
+          Button("Модели…") { s.openModels() }
         } label: {
           DropLabel(
             title: s.models.first(where: { $0.file == s.model })?.name
@@ -539,6 +539,7 @@ struct NegativeBox: View {
 @available(macOS 26, *)
 struct GenerateBar: View {
   @ObservedObject var s: Studio
+  @Local private var showFinish = false
 
   var body: some View {
     HStack(spacing: 8) {
@@ -557,25 +558,32 @@ struct GenerateBar: View {
 
       if s.tab == .video {
         // what is done to the clip's frames after the model has made them
-        Menu {
-          Section("после генерации") {
-            ForEach(
-              [VideoFinish.asIs, .smoother(fps: 24), .smoother(fps: 30), .smoother(fps: 60), .longer(times: 2)],
-              id: \.self
-            ) { finish in
-              Button((s.videoFinish == finish ? "✓ " : "") + finish.label) { s.videoFinish = finish }
+        HWButton(title: "", symbol: "chevron.down", fixedWidth: 54) { showFinish.toggle() }
+          .help("Плавнее: macOS дорисует кадры до выбранной частоты, длина та же. Длиннее: дорисует кадры между, ролик вдвое дольше и вдвое медленнее. Как есть: только кадры модели")
+          .popover(isPresented: $showFinish, arrowEdge: .top) {
+            VStack(alignment: .leading, spacing: 2) {
+              Cap(text: "после генерации", rule: false).padding(.bottom, 6)
+              ForEach(
+                [VideoFinish.asIs, .smoother(fps: 24), .smoother(fps: 30), .smoother(fps: 60), .longer(times: 2)],
+                id: \.self
+              ) { finish in
+                Button {
+                  s.videoFinish = finish
+                  showFinish = false
+                } label: {
+                  HStack(spacing: 8) {
+                    Image(systemName: "checkmark").font(.system(size: 9, weight: .bold))
+                      .opacity(s.videoFinish == finish ? 1 : 0)
+                    Text(finish.label).font(.mono(11))
+                    Spacer()
+                  }
+                  .foregroundStyle(P.ink).padding(.vertical, 6).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+              }
             }
+            .padding(14).frame(width: 220).background(P.panel)
           }
-        } label: {
-          Image(systemName: "chevron.down").font(.system(size: 11, weight: .bold))
-            .foregroundStyle(P.ink)
-            .frame(width: 40, height: 44)
-            .background(P.panel2)
-            .overlay(Rectangle().stroke(P.line, lineWidth: 1))
-            .contentShape(Rectangle())
-        }
-        .menuStyle(.button).buttonStyle(.plain).fixedSize()
-        .help("Плавнее: macOS дорисует кадры до выбранной частоты, длина та же. Длиннее: дорисует кадры между, ролик вдвое дольше и вдвое медленнее. Как есть: только кадры модели")
       }
 
       if s.busy || s.queued > 0 {

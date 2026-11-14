@@ -272,7 +272,7 @@ struct LoRABlock: View {
         Text("LoRA пока нет. Перетащите .safetensors в окно или откройте «Модели»")
           .font(.mono(9)).tracking(0.3).foregroundStyle(P.muted)
           .fixedSize(horizontal: false, vertical: true)
-        HWButton(title: "Модели…") { s.openModels(openWindow) }
+        HWButton(title: "Модели…") { s.openModels() }
       } else {
         ForEach(picks) { pick in
           LoRARow(s: s, pick: pick, staged: video && s.videoRefinerInUse != nil)

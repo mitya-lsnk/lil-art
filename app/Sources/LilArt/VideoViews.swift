@@ -68,7 +68,7 @@ struct NoVideoModels: View {
         s.library.catalogTab = true
         s.catalog.kind = nil
         s.catalog.videoOnly = true
-        s.openModels(openWindow)
+        s.openModels()
       }
     }
   }
@@ -251,7 +251,7 @@ struct VideoModelRow: View {
             }
           }
           Divider()
-          Button("Модели…") { s.openModels(openWindow) }
+          Button("Модели…") { s.openModels() }
         } label: {
           DropLabel(
             title: s.videoModels.first(where: { $0.file == s.videoModel })?.name

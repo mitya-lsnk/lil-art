@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import FoundationModels
 import NaturalLanguage
 import SwiftUI
@@ -210,7 +211,9 @@ final class Translator: ObservableObject {
   /// So translation always goes through the system translator, which is a dedicated
   /// translation system and needs no Apple Intelligence. The language model is only asked
   /// to embellish text that is already English, which is what it is actually good at.
-  func english(for text: String, improve: Bool = false) async -> String {
+  /// `frame` is the first frame of a clip: the improver then writes what happens next from it.
+  /// Only a local model is shown the picture; Apple's is given the text alone.
+  func english(for text: String, improve: Bool = false, frame: URL? = nil) async -> String {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       lastEnglish = ""
@@ -274,9 +277,9 @@ final class Translator: ObservableObject {
               languageModelFailure.isEmpty ? "Apple Intelligence не ответила" : languageModelFailure))
         }
       case .local:
-        if let richer = await viaCustomLLM(english) {
+        if let richer = await viaCustomLLM(english, frame: frame) {
           english = richer
-          steps.append("улучшила своя модель")
+          steps.append(frame == nil ? "улучшила своя модель" : "улучшила своя модель по первому кадру")
         } else {
           steps.append("улучшить не вышло")
           onProblem?(.enrichFailed("своя модель не ответила: \(endpointStatus)"))
@@ -291,12 +294,7 @@ final class Translator: ObservableObject {
     return english
   }
 
-  private static let enrichInstructions = """
-    You expand short English image prompts. Keep every subject, object and adjective the \
-    author wrote, in the same order, then add concrete visual detail: lighting, materials, \
-    texture, lens, mood. Never replace or remove anything the author named. Never invent a \
-    different subject. Stay under 60 words. Reply with the prompt only.
-    """
+  private static let enrichInstructions = PromptChat.plain
 
   // MARK: system language model
 
@@ -393,16 +391,35 @@ final class Translator: ObservableObject {
 
   /// Talks to an OpenAI-compatible endpoint on this machine. Nothing leaves the Mac
   /// unless the user points this at a remote address themselves.
-  private func viaCustomLLM(_ english: String) async -> String? {
+  private func viaCustomLLM(_ english: String, frame: URL? = nil) async -> String? {
+    let picture = frame.flatMap(Self.smallJPEG)
     guard
-      let out = await chat(system: Self.enrichInstructions, user: english, timeout: 60)
+      let out = await chat(
+        system: PromptChat.instructions(hasFrame: picture != nil), user: english, timeout: 60,
+        image: picture)
     else { return nil }
     let cleaned = out.trimmingCharacters(in: .whitespacesAndNewlines)
     return cleaned.isEmpty ? nil : cleaned
   }
 
+  /// The picture as the model needs it: small enough to read quickly, big enough to see who is there.
+  private static func smallJPEG(_ url: URL) -> Data? {
+    guard let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+      let image = CGImageSourceCreateThumbnailAtIndex(
+        source, 0,
+        [
+          kCGImageSourceCreateThumbnailFromImageAlways: true, kCGImageSourceThumbnailMaxPixelSize: 768,
+          kCGImageSourceCreateThumbnailWithTransform: true,
+        ] as CFDictionary)
+    else { return nil }
+    let data = NSMutableData()
+    guard let out = CGImageDestinationCreateWithData(data, "public.jpeg" as CFString, 1, nil) else { return nil }
+    CGImageDestinationAddImage(out, image, [kCGImageDestinationLossyCompressionQuality: 0.8] as CFDictionary)
+    return CGImageDestinationFinalize(out) ? data as Data : nil
+  }
+
   private func chat(
-    system: String, user: String, timeout: TimeInterval, attempt: Int = 0
+    system: String, user: String, timeout: TimeInterval, image: Data? = nil, attempt: Int = 0
   ) async -> String? {
     if attempt == 0 { await ensureRoom() }
     guard var url = URL(string: endpoint) else { return nil }
@@ -413,10 +430,7 @@ final class Translator: ObservableObject {
     request.httpMethod = "POST"
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     var body: [String: Any] = [
-      "messages": [
-        ["role": "system", "content": system],
-        ["role": "user", "content": user],
-      ],
+      "messages": PromptChat.messages(system: system, user: user, imageJPEG: image),
       "temperature": 0.2,
       "stream": false,
     ]
@@ -433,7 +447,7 @@ final class Translator: ObservableObject {
         {
           await makeRoom?(false)
           try? await Task.sleep(nanoseconds: UInt64(MemoryTurn.retryPauses[attempt] * 1_000_000_000))
-          return await chat(system: system, user: user, timeout: timeout, attempt: attempt + 1)
+          return await chat(system: system, user: user, timeout: timeout, image: image, attempt: attempt + 1)
         }
         endpointStatus = http.statusCode != 507
           ? "сервер ответил \(http.statusCode)"

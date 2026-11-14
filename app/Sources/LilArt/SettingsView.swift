@@ -29,8 +29,7 @@ struct SettingsView: View {
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    // seven tabs, and the models list needs the room
-    .frame(width: 900, height: 640)
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
     .lilAppearance()
     .focusEffectDisabled()
   }
