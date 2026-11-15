@@ -10,7 +10,7 @@ import Testing
     let names = Mirror(reflecting: UIChoices()).children.compactMap(\.label).sorted()
     #expect(
       names == [
-        "aspect", "loraOn", "loras", "megapixels", "model", "preset", "pro", "quality", "sampler",
+        "aspect", "megapixels", "model", "preset", "pro", "quality", "sampler",
         "showSizePad", "tab", "upscaleFactor", "upscaleOn", "upscaler", "videoModel", "videoPro",
         "videoSampler", "videoSizeIndex",
       ])
@@ -21,7 +21,7 @@ import Testing
     choices.model = "krea.ckpt"
     choices.pro = true
     let text = String(decoding: try #require(choices.encoded()), as: UTF8.self)
-    for typed in ["prompt", "negative", "seed", "width", "height", "steps", "cfg", "frames", "fps"] {
+    for typed in ["prompt", "negative", "seed", "width", "height", "steps", "cfg", "frames", "fps", "lora"] {
       #expect(!text.lowercased().contains(typed), "\(typed)")
     }
   }
@@ -33,7 +33,6 @@ import Testing
     choices.videoPro = true
     choices.aspect = "wide"
     choices.megapixels = 1.5
-    choices.loras = ["a.ckpt", "b.ckpt"]
     choices.videoSizeIndex = 2
     #expect(UIChoices.decode(choices.encoded()) == choices)
   }
@@ -44,6 +43,14 @@ import Testing
   }
 
   /// A file written by a later or earlier build with other fields must still be read.
+  /// A LoRA is never part of what comes back: a launch starts with none chosen and none switched on.
+  @Test func loRAsOfAnOlderFileAreLeftOut() {
+    let data = Data(#"{"pro": true, "loraOn": true, "loras": ["a.ckpt"]}"#.utf8)
+    let choices = UIChoices.decode(data)
+    #expect(choices?.pro == true)
+    #expect(String(decoding: choices?.encoded() ?? Data(), as: UTF8.self).contains("lora") == false)
+  }
+
   @Test func unknownFieldsAreIgnoredAndMissingOnesTakeTheirDefaults() {
     let data = Data(#"{"pro": true, "somethingNew": 5}"#.utf8)
     let choices = UIChoices.decode(data)

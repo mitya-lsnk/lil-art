@@ -299,9 +299,6 @@ struct LoRABlock: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
-    .onAppear {
-      if picks.isEmpty, !s.loraFiles.isEmpty { s.addLoRA(video: video) }
-    }
   }
 }
 @available(macOS 26, *)

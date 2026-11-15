@@ -390,8 +390,6 @@ extension Studio {
     choices.videoSampler = Int(videoSampler.rawValue)
     choices.preset = presets.first(where: { $0.id == chosenPreset })?.name
     choices.showSizePad = showSizePad
-    choices.loraOn = loraOn
-    choices.loras = loraPicks.map(\.file)
     choices.upscaleOn = upscaleOn
     choices.upscaler = upscaler
     choices.upscaleFactor = upscaleFactor

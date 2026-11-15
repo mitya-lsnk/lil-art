@@ -23,6 +23,18 @@ private func store() -> LilStore {
   }
 
   /// The snapshot of the whole last session (the prompt among it) is gone for good.
+  @Test func theLoRAsOfTheLastRunAreForgotten() {
+    let s = store()
+    s.set(true, forKey: "video.loraOn")
+    s.set([["file": "a.ckpt"]], forKey: "video.loras")
+    s.set(["a.ckpt": ["weight": 0.8, "words": "word"]], forKey: "lora.prefs")
+    Records.purge(s)
+    #expect(s.object(forKey: "video.loraOn") == nil)
+    #expect(s.object(forKey: "video.loras") == nil)
+    // what a LoRA is like (its strength, its words) is a setting of the LoRA and stays
+    #expect(s.object(forKey: "lora.prefs") != nil)
+  }
+
   @Test func theOldWholeSessionSnapshotIsRemoved() {
     let s = store()
     s.set(Data([1, 2, 3]), forKey: "session.last")

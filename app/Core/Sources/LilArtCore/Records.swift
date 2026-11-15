@@ -9,7 +9,9 @@ import Foundation
 /// This clears away what older versions wrote.
 enum Records {
   /// Settings that once recorded actions and that nothing writes any more.
-  static let retired = ["assist.history", "llm.released", "session.last", "session.restore"]
+  static let retired = [
+    "assist.history", "llm.released", "session.last", "session.restore", "video.loraOn", "video.loras",
+  ]
 
   /// The snapshot of the whole last session held what was being worked on, the prompt among it;
   /// what the window keeps now is only its choices (`UIChoices`).

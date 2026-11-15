@@ -3,7 +3,8 @@ import Foundation
 /// What the window remembers between launches: what can be switched or picked from a list (the
 /// tab, the models, PRO, the shape and size of the frame, the sampler…). Nothing the person
 /// typed is in it, and nothing may be added that was: the prompt, the seed, the numbers in the
-/// fields. Those are kept only when the person saves them themselves.
+/// fields. Those are kept only when the person saves them themselves. Nor are LoRAs: every
+/// launch starts with none chosen and none switched on.
 struct UIChoices: Codable, Equatable {
   static let key = "ui.choices"
 
@@ -19,8 +20,6 @@ struct UIChoices: Codable, Equatable {
   var videoSampler = 0
   var preset: String?
   var showSizePad = false
-  var loraOn = false
-  var loras: [String] = []
   var upscaleOn = false
   var upscaler: String?
   var upscaleFactor = 0
@@ -45,8 +44,6 @@ struct UIChoices: Codable, Equatable {
     choices.videoSampler = (raw["videoSampler"] as? NSNumber)?.intValue ?? 0
     choices.preset = raw["preset"] as? String
     choices.showSizePad = raw["showSizePad"] as? Bool ?? false
-    choices.loraOn = raw["loraOn"] as? Bool ?? false
-    choices.loras = raw["loras"] as? [String] ?? []
     choices.upscaleOn = raw["upscaleOn"] as? Bool ?? false
     choices.upscaler = raw["upscaler"] as? String
     choices.upscaleFactor = (raw["upscaleFactor"] as? NSNumber)?.intValue ?? 0
