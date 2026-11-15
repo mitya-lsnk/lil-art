@@ -387,43 +387,20 @@ struct LoRARow: View {
 struct SaveForModelRow: View {
   @ObservedObject var s: Studio
 
+  /// Two plain buttons; nothing says that a model has settings of its own. Save is dim while
+  /// what is on screen is already what was saved, and reset while there is nothing to go back from.
   var body: some View {
     let current = Recommended(steps: s.proSteps, cfg: s.proCFG, sampler: s.sampler)
     let saved = s.savedForModel
-    VStack(alignment: .leading, spacing: 6) {
-      HStack(spacing: 8) {
-        if let saved, saved == current {
-          HStack(spacing: 8) {
-            Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
-              .foregroundStyle(P.led)
-            Text("ЗАПОМНЕНО ДЛЯ МОДЕЛИ").font(.mono(10, .bold)).tracking(1.2)
-              .foregroundStyle(P.ink)
-          }
-          .padding(.horizontal, 12).frame(height: 34)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .background(P.panel)
-          .overlay(RoundedRectangle(cornerRadius: 9).stroke(P.hair, lineWidth: 1))
-        } else {
-          HWButton(title: saved == nil ? "Запомнить для модели" : "Запомнить изменения") {
-            s.saveForModel()
-          }
-        }
-        if saved != nil {
-          Button { s.forgetForModel() } label: {
-            Text("СБРОСИТЬ").font(.mono(9, .bold)).tracking(1).foregroundStyle(P.muted)
-              .padding(.horizontal, 8).frame(height: 34)
-              .contentShape(Rectangle())
-          }
-          .buttonStyle(.plain)
-        }
-      }
-      Text(
-        saved == nil
-          ? "Sampler, Steps и CFG запомнятся для этой модели и будут действовать и в простом режиме"
-          : "для этой модели действуют ваши настройки, а не рекомендация"
-      )
-      .font(.mono(8)).tracking(0.2).foregroundStyle(P.muted)
-      .fixedSize(horizontal: false, vertical: true)
+    let recommended = s.recommended.map { Recommended(steps: $0.steps, cfg: $0.cfg, sampler: $0.sampler) }
+    let canSave = saved == nil ? current != recommended : saved != current
+    let canReset = saved != nil || (recommended != nil && current != recommended)
+    HStack(spacing: 8) {
+      HWButton(title: "Сохранить", enabled: canSave) { s.saveForModel() }
+        .opacity(canSave ? 1 : 0.4)
+      HWButton(title: "Сбросить", enabled: canReset) { s.forgetForModel() }
+        .opacity(canReset ? 1 : 0.4)
     }
+    .help("Sampler, Steps и CFG для этой модели: сохранить текущие или вернуть как есть по умолчанию")
   }
 }
