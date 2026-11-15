@@ -9,7 +9,6 @@ struct PromptTextView: NSViewRepresentable {
   @Binding var text: String
   var fontSize: CGFloat = 13
   let assist: PromptAssist
-  var useHistory = true
 
   func makeCoordinator() -> Coordinator { Coordinator(self) }
 
@@ -122,7 +121,7 @@ struct PromptTextView: NSViewRepresentable {
       let range = view.rangeForUserCompletion
       guard range.location != NSNotFound, range.length >= 2 else { return }
       let token = (current as NSString).substring(with: range)
-      let found = parent.assist.suggestions(for: token, includeHistory: parent.useHistory)
+      let found = parent.assist.suggestions(for: token)
       // Asking for completions with nothing to show makes the system beep.
       guard !found.isEmpty else { return }
       pending = found
@@ -137,7 +136,7 @@ struct PromptTextView: NSViewRepresentable {
       pending = []
       if list.isEmpty {
         let token = (textView.string as NSString).substring(with: charRange)
-        list = parent.assist.suggestions(for: token, includeHistory: parent.useHistory)
+        list = parent.assist.suggestions(for: token)
       }
       byLabel = [:]
       var labels: [String] = []

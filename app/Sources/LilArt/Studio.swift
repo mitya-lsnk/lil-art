@@ -157,8 +157,12 @@ final class Studio: ObservableObject {
   @Published var showMemory = false
   @Published var showGallery = false
   /// Model, settings and prompt come back as they were when the app was quit.
-  @Published var restoreSession = LilStore.standard.object(forKey: "session.restore") as? Bool ?? true {
-    didSet { LilStore.standard.set(restoreSession, forKey: "session.restore") }
+  /// Off unless asked for: the last session holds what was being worked on (the prompt among it).
+  @Published var restoreSession = LilStore.standard.object(forKey: "session.restore") as? Bool ?? false {
+    didSet {
+      LilStore.standard.set(restoreSession, forKey: "session.restore")
+      Records.purge(LilStore.standard, keepSession: restoreSession)
+    }
   }
 
   let catalog = Catalog()
@@ -300,6 +304,9 @@ final class Studio: ObservableObject {
     installKeyMonitor()
     Task { await CatalogCache.refreshIfStale() }
     Task { await ControlNets.refreshCatalog() }
+    // what older versions recorded of the person's work is cleared away
+    Records.purge(LilStore.standard, keepSession: restoreSession)
+    Records.removeOldFiles(in: ProjectRoot.places.root)
     if restoreSession { restore() }
     syncWithLibrary()
     savedForModel = ModelPrefs.load(model)

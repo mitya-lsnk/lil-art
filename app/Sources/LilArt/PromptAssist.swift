@@ -23,32 +23,18 @@ final class PromptAssist: ObservableObject {
   @Published var spellcheck = true {
     didSet { LilStore.standard.set(spellcheck, forKey: "assist.spellcheck") }
   }
-  @Published var useHistory = true {
-    didSet { LilStore.standard.set(useHistory, forKey: "assist.history") }
-  }
   @Published private(set) var enabled: Set<Source> = [.danbooru]
   @Published private(set) var status: [Source: String] = [:]
 
   private var indexes: [Source: TagIndex] = [:]
-  private var prompts: [String] = []
-  /// `lower` is stored once: lowercasing every phrase on every keystroke was the hot spot.
-  private var phrases: [(text: String, lower: String)] = []
 
   private var tagsDir: URL { ProjectRoot.places.tags }
-  private var historyFile: URL { ProjectRoot.places.history }
 
   init() {
     let d = LilStore.standard
     if d.object(forKey: "assist.spellcheck") != nil { spellcheck = d.bool(forKey: "assist.spellcheck") }
-    if d.object(forKey: "assist.history") != nil { useHistory = d.bool(forKey: "assist.history") }
     if let saved = d.array(forKey: "assist.sources") as? [String] {
       enabled = Set(saved.compactMap(Source.init(rawValue:)))
-    }
-    if let data = try? Data(contentsOf: historyFile),
-      let list = try? JSONDecoder().decode([String].self, from: data)
-    {
-      prompts = list
-      rebuildPhrases()
     }
     for source in enabled { ensure(source) }
   }
@@ -112,67 +98,14 @@ final class PromptAssist: ObservableObject {
     status[source] = "\(index.entries.count) тегов"
   }
 
-  // MARK: history
-
-  func remember(prompt: String) {
-    let text = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !text.isEmpty else { return }
-    prompts.removeAll { $0 == text }
-    prompts.insert(text, at: 0)
-    if prompts.count > 300 { prompts.removeLast(prompts.count - 300) }
-    rebuildPhrases()
-    try? FileManager.default.createDirectory(
-      at: ProjectRoot.places.root, withIntermediateDirectories: true)
-    if let data = try? JSONEncoder().encode(prompts) {
-      try? data.write(to: historyFile, options: .atomic)
-    }
-  }
-
-  func clearHistory() {
-    prompts = []
-    phrases = []
-    try? FileManager.default.removeItem(at: historyFile)
-  }
-
-  var historyCount: Int { prompts.count }
-
-  /// Prompts are lists of pieces, so the pieces are what gets suggested, newest first.
-  private func rebuildPhrases() {
-    var seen = Set<String>()
-    var out: [(text: String, lower: String)] = []
-    collect: for prompt in prompts {
-      for piece in prompt.split(whereSeparator: { ",;\n".contains($0) }) {
-        let phrase = piece.trimmingCharacters(in: .whitespaces)
-        guard phrase.count >= 3 else { continue }
-        let lower = phrase.lowercased()
-        if seen.insert(lower).inserted { out.append((phrase, lower)) }
-        if out.count >= 2000 { break collect }
-      }
-    }
-    phrases = out
-  }
-
   // MARK: lookup
 
-  func suggestions(for token: String, includeHistory: Bool) -> [Suggestion] {
+  func suggestions(for token: String) -> [Suggestion] {
     let query = token.trimmingCharacters(in: .whitespaces)
     guard query.count >= 2 else { return [] }
     let lowered = query.lowercased()
     var out: [Suggestion] = []
     var seen = Set<String>()
-
-    if includeHistory, useHistory {
-      let wordStart = " " + lowered
-      for phrase in phrases {
-        guard phrase.lower != lowered,
-          phrase.lower.hasPrefix(lowered) || phrase.lower.contains(wordStart)
-        else { continue }
-        if seen.insert(phrase.lower).inserted {
-          out.append(Suggestion(insert: phrase.text, label: "↺  " + phrase.text, appendsComma: false))
-        }
-        if out.count >= 5 { break }
-      }
-    }
 
     var hits: [(TagIndex.Entry, Source)] = []
     for source in Source.allCases where enabled.contains(source) {

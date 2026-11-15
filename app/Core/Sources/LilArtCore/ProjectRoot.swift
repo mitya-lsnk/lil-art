@@ -1,7 +1,7 @@
 import Foundation
 
 /// Where the lil art project lives: the engine, the models, the caches, the finished pictures,
-/// the tag lists, the prompt history and the keys. Everything hangs from one folder, and that
+/// the tag lists and the keys. Everything hangs from one folder, and that
 /// folder is asked here and nowhere else.
 ///
 /// `build.sh` builds the real path of the project into the program's Info.plist (`LilRoot`),
@@ -43,7 +43,6 @@ enum ProjectRoot {
     var engineLog: URL { root.appendingPathComponent("engine.log") }
     var tools: URL { root.appendingPathComponent("tools") }
     var tags: URL { root.appendingPathComponent("tags") }
-    var history: URL { root.appendingPathComponent("history.json") }
     var cache: URL { root.appendingPathComponent("cache") }
     var out: URL { root.appendingPathComponent("out") }
     var secrets: URL { root.appendingPathComponent("secrets") }

@@ -45,7 +45,7 @@ struct PromptBox: View {
           // what the model will read; editable, so a clumsy translation can be put right
           PromptTextView(
             text: Binding(get: { s.englishPrompt }, set: { s.editEnglish($0) }), fontSize: 12,
-            assist: s.assist, useHistory: false
+            assist: s.assist
           )
           .id("english")
           .padding(4)
@@ -105,7 +105,7 @@ struct LocalModelRow: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(spacing: 8) {
-        Text("МОДЕЛЬ").font(.mono(9)).tracking(0.8).foregroundStyle(P.muted)
+        Text("МОДЕЛЬ").font(.mono(9)).tracking(0.8).foregroundStyle(P.muted).fixedSize()
         if translator.models.isEmpty {
           field("список пуст", chevron: false).foregroundStyle(P.muted)
         } else {
@@ -117,7 +117,10 @@ struct LocalModelRow: View {
             field(translator.customModel.isEmpty ? "выберите" : translator.customModel)
           }
           .menuStyle(.button).buttonStyle(.plain)
+          .frame(maxWidth: 150)
+          .help(translator.customModel.isEmpty ? "Модель сервера" : translator.customModel)
         }
+        Spacer(minLength: 0)
         SmallButton(title: translator.checking ? "Проверяю" : "Проверить") {
           Task { await translator.refreshModels() }
         }
@@ -130,6 +133,8 @@ struct LocalModelRow: View {
           .fixedSize(horizontal: false, vertical: true)
       }
     }
+    // 8 in from the box on both sides: the row ends where the buttons above it end
+    .padding(.horizontal, 8)
     .onAppear { if translator.models.isEmpty { Task { await translator.refreshModels() } } }
   }
 }

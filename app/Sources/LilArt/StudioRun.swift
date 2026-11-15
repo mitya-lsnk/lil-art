@@ -113,7 +113,6 @@ extension Studio {
     } else {
       queue.append(contentsOf: makeImageJobs().map(Job.image))
     }
-    assist.remember(prompt: prompt)
     queued = queue.count
     startWorker()
   }

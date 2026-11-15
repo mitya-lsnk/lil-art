@@ -505,7 +505,7 @@ struct NegativeBox: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
       VStack(spacing: 0) {
-        PromptTextView(text: $s.negative, fontSize: 12, assist: s.assist, useHistory: false)
+        PromptTextView(text: $s.negative, fontSize: 12, assist: s.assist)
           .padding(4)
           .frame(height: 54)
         HStack(spacing: 8) {

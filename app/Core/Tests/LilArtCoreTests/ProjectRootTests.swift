@@ -68,7 +68,7 @@ private func folder() -> URL {
     let places = ProjectRoot.Places(root: root)
     let all = [
       places.models, places.engine, places.engineBinary, places.engineLog, places.drawThingsCLI,
-      places.tools, places.tags, places.history, places.cache, places.out, places.secrets,
+      places.tools, places.tags, places.cache, places.out, places.secrets,
       places.golden,
     ]
     for place in all {
@@ -85,7 +85,6 @@ private func folder() -> URL {
     #expect(places.cache.path == "/r/cache")
     #expect(places.out.path == "/r/out")
     #expect(places.tags.path == "/r/tags")
-    #expect(places.history.path == "/r/history.json")
     #expect(places.secrets.path == "/r/secrets")
   }
 }

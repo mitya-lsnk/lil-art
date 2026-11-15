@@ -41,7 +41,10 @@ private struct GeneralSettings: View {
 
   var body: some View {
     LilSettingsPage {
-      LilSettingRow(title: "Восстанавливать при запуске", note: "Модель, настройки, Prompt и LoRA — как при выходе") {
+      LilSettingRow(
+        title: "Помнить последнюю сессию",
+        note: "Выключено: при запуске всё с нуля, ничего о прошлой работе не хранится. Включено: модель, настройки, Prompt и LoRA — как при выходе"
+      ) {
         LilSwitch(isOn: $s.restoreSession)
       }
       LilSettingRow(
@@ -110,12 +113,6 @@ private struct PromptSettings: View {
     LilSettingsPage {
       LilSettingRow(title: "Проверка орфографии") {
         LilSwitch(isOn: $assist.spellcheck)
-      }
-      LilSettingRow(title: "Подсказки из истории", note: "Запомнено фраз: \(assist.historyCount)") {
-        HStack(spacing: 10) {
-          SmallButton(title: "Очистить", quiet: true) { assist.clearHistory() }
-          LilSwitch(isOn: $assist.useHistory)
-        }
       }
       ForEach(PromptAssist.Source.allCases, id: \.self) { source in
         LilSettingRow(
