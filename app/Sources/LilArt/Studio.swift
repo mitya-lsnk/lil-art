@@ -156,14 +156,6 @@ final class Studio: ObservableObject {
 
   @Published var showMemory = false
   @Published var showGallery = false
-  /// Model, settings and prompt come back as they were when the app was quit.
-  /// Off unless asked for: the last session holds what was being worked on (the prompt among it).
-  @Published var restoreSession = LilStore.standard.object(forKey: "session.restore") as? Bool ?? false {
-    didSet {
-      LilStore.standard.set(restoreSession, forKey: "session.restore")
-      Records.purge(LilStore.standard, keepSession: restoreSession)
-    }
-  }
 
   let catalog = Catalog()
   let library: ModelLibrary
@@ -305,9 +297,9 @@ final class Studio: ObservableObject {
     Task { await CatalogCache.refreshIfStale() }
     Task { await ControlNets.refreshCatalog() }
     // what older versions recorded of the person's work is cleared away
-    Records.purge(LilStore.standard, keepSession: restoreSession)
+    Records.purge(LilStore.standard)
     Records.removeOldFiles(in: ProjectRoot.places.root)
-    if restoreSession { restore() }
+    restore()
     syncWithLibrary()
     savedForModel = ModelPrefs.load(model)
     refreshMemory()
@@ -316,7 +308,7 @@ final class Studio: ObservableObject {
     ) { [weak self] _ in
       MainActor.assumeIsolated { self?.saveSession() }
     }
-    // saved along the way too, so a crash does not lose the prompt
+    // saved along the way too, so a crash does not lose the choices
     sessionSaver = objectWillChange
       .throttle(for: .seconds(5), scheduler: RunLoop.main, latest: true)
       .sink { [weak self] _ in self?.saveSession() }
@@ -510,53 +502,36 @@ final class Studio: ObservableObject {
 
   // MARK: the session, kept across launches
 
-  var lastSavedSession: Data?
+  var lastSavedChoices: Data?
 
+  /// Brings the window's choices back. What was typed (prompt, seed, numbers) is not among them.
   func restore() {
-    guard let data = LilStore.standard.data(forKey: "session.last"),
-      let session = try? JSONDecoder().decode(Session.self, from: data)
-    else { return }
-    prompt = session.prompt
-    negative = session.negative
-    negativeOn = session.negativeOn
-    model = session.model
-    aspect = Aspect(rawValue: session.aspect) ?? aspect
-    megapixels = Megapixels(rawValue: session.megapixels) ?? megapixels
-    quality = Quality(rawValue: session.quality) ?? quality
-    batch = session.batch
-    chosenPreset = presets.first(where: { $0.name == session.preset })?.id
-    // switching pro on seeds the manual fields; the saved values then take their place
-    pro = session.pro
-    if let saved = SamplerType(rawValue: Int8(clamping: session.sampler)) { sampler = saved }
-    proSteps = session.steps
-    proCFG = session.cfg
-    proWidth = session.width
-    proHeight = session.height
-    widthText = String(session.width)
-    heightText = String(session.height)
-    showSizePad = session.showSizePad
-    seedLocked = session.seedLocked
-    lockedSeed = session.seed
-    loraOn = session.loraOn
-    loraPicks = zip(session.loras, session.loraWeights).map { LoRAPick(file: $0, weight: $1) }
-    strength = session.strength
-    upscaleOn = session.upscaleOn ?? false
-    upscaler = session.upscaler ?? upscaler
-    upscaleFactor = session.upscaleFactor ?? 0
-    videoModel = session.videoModel ?? ""
-    videoSeconds = session.videoSeconds ?? videoSeconds
-    videoSizeIndex = session.videoSizeIndex ?? 0
-    videoSteps = session.videoSteps ?? videoSteps
-    videoCFG = session.videoCFG ?? videoCFG
-    videoShift = session.videoShift ?? videoShift
-    videoFPS = session.videoFPS ?? videoFPS
-    if let raw = session.videoSampler, let saved = SamplerType(rawValue: Int8(clamping: raw)) {
-      videoSampler = saved
+    guard let saved = UIChoices.decode(LilStore.standard.data(forKey: UIChoices.key)) else { return }
+    if !saved.model.isEmpty { model = saved.model }
+    aspect = Aspect(rawValue: saved.aspect) ?? aspect
+    megapixels = Megapixels(rawValue: saved.megapixels) ?? megapixels
+    quality = Quality(rawValue: saved.quality) ?? quality
+    chosenPreset = presets.first(where: { $0.name == saved.preset })?.id
+    // switching pro on seeds the manual fields from the model's own numbers
+    pro = saved.pro
+    if let sampler = SamplerType(rawValue: Int8(clamping: saved.sampler)), pro { self.sampler = sampler }
+    showSizePad = saved.showSizePad
+    loraOn = saved.loraOn
+    loraPicks = saved.loras.map { LoRAPick(file: $0, weight: LoRAPrefs.weight(for: $0) ?? 0.6) }
+    upscaleOn = saved.upscaleOn
+    upscaler = saved.upscaler ?? upscaler
+    upscaleFactor = saved.upscaleFactor
+    videoModel = saved.videoModel
+    videoSizeIndex = saved.videoSizeIndex
+    videoPro = saved.videoPro
+    if videoPro, let sampler = SamplerType(rawValue: Int8(clamping: saved.videoSampler)) {
+      videoSampler = sampler
     }
-    videoPro = session.videoPro ?? false
-    videoNegativeOn = session.videoNegativeOn ?? false
-    videoNegative = session.videoNegative ?? videoNegative
-    if session.videoTab == true, !videoModel.isEmpty { tab = .video }
+    switch saved.tab {
+    case "video" where !videoModel.isEmpty: tab = .video
+    case "edit": tab = .edit
+    default: break
+    }
     refreshSpeedProfile()
   }
 

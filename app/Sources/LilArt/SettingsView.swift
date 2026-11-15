@@ -42,12 +42,6 @@ private struct GeneralSettings: View {
   var body: some View {
     LilSettingsPage {
       LilSettingRow(
-        title: "Помнить последнюю сессию",
-        note: "Выключено: при запуске всё с нуля, ничего о прошлой работе не хранится. Включено: модель, настройки, Prompt и LoRA — как при выходе"
-      ) {
-        LilSwitch(isOn: $s.restoreSession)
-      }
-      LilSettingRow(
         title: "Показывать процесс генерации",
         note: "Промежуточные шаги выглядят как шум и цветные пятна — так и должно быть. Без этого видна только полоса прогресса"
       ) {

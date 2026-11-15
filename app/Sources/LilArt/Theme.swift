@@ -33,6 +33,8 @@ struct HWButton: View {
         Text(title.uppercased())
           .font(.mono(primary ? 12 : 10, .bold))
           .tracking(1.2)
+          // a button's name is one line; a long one shrinks a little rather than wrapping
+          .lineLimit(1).minimumScaleFactor(0.75)
       }
       if let hint {
         Text(hint).font(.mono(10)).opacity(0.7)

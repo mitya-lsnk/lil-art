@@ -92,7 +92,11 @@ private struct TopBar: View {
       HStack(spacing: 0) {
         Wordmark().fixedSize()
         Spacer(minLength: 10)
-        Segmented(options: Tab.allCases.map { ($0, $0.label) }, value: $s.tab)
+        // a click on a tab, the one already chosen too, leaves the settings for that tab
+        Segmented(
+          options: Tab.allCases.map { ($0, $0.label) },
+          value: Binding(get: { s.tab }, set: { s.tab = $0; s.showSettings = false })
+        )
           .fixedSize()
       }
       .padding(.leading, 18)

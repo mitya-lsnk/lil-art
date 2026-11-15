@@ -541,11 +541,18 @@ struct GenerateBar: View {
   @ObservedObject var s: Studio
   @Local private var showFinish = false
 
+  /// One short line: with a finishing touch chosen the button says only that ("плавно 24 к/с"),
+  /// the person knows which button it is.
+  private var title: String {
+    let finish = s.tab == .video ? s.videoFinish.buttonLabel : nil
+    if s.busy { return finish.map { "в очередь · " + $0 } ?? "добавить в очередь" }
+    return finish ?? "Сгенерировать"
+  }
+
   var body: some View {
     HStack(spacing: 8) {
       HWButton(
-        title: (s.busy ? "добавить в очередь" : "Сгенерировать")
-          + (s.tab == .video && s.videoFinish != .asIs ? " · " + s.videoFinish.label : ""),
+        title: title,
         hint: "⌘ ↵", primary: true
       ) { s.enqueue() }
         // HWButton is drawn by hand and cannot carry a shortcut itself; this invisible

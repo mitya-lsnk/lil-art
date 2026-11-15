@@ -16,19 +16,22 @@ private func store() -> LilStore {
     s.set(false, forKey: "assist.history")
     s.set([String](), forKey: "llm.released")
     s.set("studio", forKey: "lil.skin")
-    Records.purge(s, keepSession: true)
+    Records.purge(s)
     #expect(s.object(forKey: "assist.history") == nil)
     #expect(s.object(forKey: "llm.released") == nil)
     #expect(s.string(forKey: "lil.skin") == "studio")
   }
 
-  @Test func theLastSessionIsKeptOnlyWhenRestoringItIsOn() {
+  /// The snapshot of the whole last session (the prompt among it) is gone for good.
+  @Test func theOldWholeSessionSnapshotIsRemoved() {
     let s = store()
     s.set(Data([1, 2, 3]), forKey: "session.last")
-    Records.purge(s, keepSession: true)
-    #expect(s.data(forKey: "session.last") == Data([1, 2, 3]))
-    Records.purge(s, keepSession: false)
+    s.set(true, forKey: "session.restore")
+    s.set(Data([4]), forKey: "ui.choices")
+    Records.purge(s)
     #expect(s.object(forKey: "session.last") == nil)
+    #expect(s.object(forKey: "session.restore") == nil)
+    #expect(s.data(forKey: "ui.choices") == Data([4]))  // the choices are settings and stay
   }
 
   @Test func settingsTheWorkIsBuiltOnSurvive() {
@@ -36,7 +39,7 @@ private func store() -> LilStore {
     s.set(["m.ckpt": ["steps": 8]], forKey: "model.saved")
     s.set(["a": 1.0], forKey: "video.rate")
     s.set(["a", "b"], forKey: "edit.phrases")
-    Records.purge(s, keepSession: false)
+    Records.purge(s)
     #expect(s.object(forKey: "model.saved") != nil)
     #expect(s.object(forKey: "video.rate") != nil)
     #expect(s.stringArray(forKey: "edit.phrases") == ["a", "b"])

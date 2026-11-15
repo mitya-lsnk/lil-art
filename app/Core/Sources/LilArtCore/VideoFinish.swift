@@ -59,6 +59,15 @@ enum VideoFinish: Equatable, Hashable {
     }
   }
 
+  /// What the generate button says in place of its own name: the person knows it is that button.
+  var buttonLabel: String? {
+    switch self {
+    case .asIs: return nil
+    case .smoother(let fps): return "плавно \(fps) к/с"
+    case .longer(let times): return "длиннее ×\(times)"
+    }
+  }
+
   /// For the settings file.
   var text: String {
     switch self {

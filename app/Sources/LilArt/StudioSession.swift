@@ -376,68 +376,31 @@ extension Studio {
 
   // MARK: the session, kept across launches
 
-  struct Session: Codable {
-    var prompt: String
-    var negative: String
-    var negativeOn: Bool
-    var model: String
-    var pro: Bool
-    var aspect: String
-    var megapixels: Double
-    var quality: String
-    var batch: Int
-    var preset: String?
-    var sampler: Int
-    var steps: Int
-    var cfg: Float
-    var width: Int
-    var height: Int
-    var showSizePad: Bool
-    var seedLocked: Bool
-    var seed: UInt32
-    var loraOn: Bool
-    var loras: [String]
-    var loraWeights: [Double]
-    var strength: Float
-    var upscaleOn: Bool?
-    var upscaler: String?
-    var upscaleFactor: Int?
-    // Everything below arrived with the video tab, so it is optional: sessions saved by
-    // an older build decode without it.
-    var videoTab: Bool?
-    var videoModel: String?
-    var videoSeconds: Double?
-    var videoSizeIndex: Int?
-    var videoSteps: Int?
-    var videoCFG: Float?
-    var videoShift: Float?
-    var videoFPS: Int?
-    var videoSampler: Int?
-    var videoPro: Bool?
-    var videoNegativeOn: Bool?
-    var videoNegative: String?
-  }
-
-
   func saveSession() {
-    guard restoreSession else { return }
-    let session = Session(
-      prompt: prompt, negative: negative, negativeOn: negativeOn, model: model, pro: pro,
-      aspect: aspect.rawValue, megapixels: megapixels.rawValue, quality: quality.rawValue,
-      batch: batch, preset: presets.first(where: { $0.id == chosenPreset })?.name,
-      sampler: Int(sampler.rawValue), steps: proSteps, cfg: proCFG, width: proWidth,
-      height: proHeight, showSizePad: showSizePad, seedLocked: seedLocked, seed: lockedSeed,
-      loraOn: loraOn, loras: loraPicks.map(\.file), loraWeights: loraPicks.map(\.weight),
-      strength: strength, upscaleOn: upscaleOn, upscaler: upscaler, upscaleFactor: upscaleFactor,
-      videoTab: tab == .video, videoModel: videoModel, videoSeconds: videoSeconds,
-      videoSizeIndex: videoSizeIndex, videoSteps: videoSteps, videoCFG: videoCFG,
-      videoShift: videoShift, videoFPS: videoFPS, videoSampler: Int(videoSampler.rawValue),
-      videoPro: videoPro, videoNegativeOn: videoNegativeOn, videoNegative: videoNegative)
-    // The saver fires on every change anywhere in the window; most of the time nothing
-    // in the session moved, and rewriting the same bytes is pure waste.
-    if let data = try? JSONEncoder().encode(session), data != lastSavedSession {
-      LilStore.standard.set(data, forKey: "session.last")
-      lastSavedSession = data
+    var choices = UIChoices()
+    choices.tab = tab == .video ? "video" : tab == .edit ? "edit" : "image"
+    choices.model = model
+    choices.videoModel = videoModel
+    choices.pro = pro
+    choices.videoPro = videoPro
+    choices.aspect = aspect.rawValue
+    choices.megapixels = megapixels.rawValue
+    choices.quality = quality.rawValue
+    choices.sampler = Int(sampler.rawValue)
+    choices.videoSampler = Int(videoSampler.rawValue)
+    choices.preset = presets.first(where: { $0.id == chosenPreset })?.name
+    choices.showSizePad = showSizePad
+    choices.loraOn = loraOn
+    choices.loras = loraPicks.map(\.file)
+    choices.upscaleOn = upscaleOn
+    choices.upscaler = upscaler
+    choices.upscaleFactor = upscaleFactor
+    choices.videoSizeIndex = videoSizeIndex
+    // The saver fires on every change anywhere in the window; most of the time no choice
+    // moved, and rewriting the same bytes is pure waste.
+    if let data = choices.encoded(), data != lastSavedChoices {
+      LilStore.standard.set(data, forKey: UIChoices.key)
+      lastSavedChoices = data
     }
   }
 

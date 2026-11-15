@@ -9,13 +9,12 @@ import Foundation
 /// This clears away what older versions wrote.
 enum Records {
   /// Settings that once recorded actions and that nothing writes any more.
-  static let retired = ["assist.history", "llm.released"]
+  static let retired = ["assist.history", "llm.released", "session.last", "session.restore"]
 
-  /// The last session (prompt, model, size…) is a snapshot of what was being done: it stays
-  /// only while the person has asked for it to be restored.
-  static func purge(_ store: LilStore, keepSession: Bool) {
+  /// The snapshot of the whole last session held what was being worked on, the prompt among it;
+  /// what the window keeps now is only its choices (`UIChoices`).
+  static func purge(_ store: LilStore) {
     for key in retired { store.removeObject(forKey: key) }
-    if !keepSession { store.removeObject(forKey: "session.last") }
   }
 
   /// The prompt history of earlier versions, a file of every prompt ever sent to generate.
