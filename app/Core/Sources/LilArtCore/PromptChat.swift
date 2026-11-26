@@ -21,7 +21,10 @@ enum PromptChat {
     Reply with the prompt only.
     """
 
-  static func instructions(hasFrame: Bool) -> String { hasFrame ? fromFrame : plain }
+  static func instructions(hasFrame: Bool, style: String? = nil) -> String {
+    let base = hasFrame ? fromFrame : plain
+    return style.map { base + " " + $0 } ?? base
+  }
 
   static func messages(system: String, user: String, imageJPEG: Data?) -> [[String: Any]] {
     var content: Any = user

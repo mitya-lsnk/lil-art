@@ -58,6 +58,7 @@ struct PromptBox: View {
 
         HStack(spacing: 6) {
           MagicButton(s: s).fixedSize()
+          StyleButton(s: s)
           Spacer(minLength: 4)
           PresetButton(s: s)
         }
@@ -186,6 +187,40 @@ struct MagicButton: View {
     }
     .buttonStyle(.plain)
     .help(help)
+  }
+}
+/// What kind of picture «Перевести» and «Улучшить» write for. «авто» reads it off the prompt's
+/// words and shows what it found.
+@available(macOS 26, *)
+struct StyleButton: View {
+  @ObservedObject var s: Studio
+
+  private var shown: String {
+    guard s.promptStyle == .auto else { return s.promptStyle.label }
+    let found = PromptStyle.detect(in: s.prompt)
+    return found.isEmpty ? "авто" : found.map(\.label).joined(separator: "+")
+  }
+
+  var body: some View {
+    Menu {
+      ForEach(PromptStyle.allCases, id: \.self) { style in
+        Button(s.promptStyle == style ? "✓  " + style.menuTitle : style.menuTitle) { s.promptStyle = style }
+      }
+    } label: {
+      HStack(spacing: 4) {
+        Image(systemName: "paintpalette").font(.system(size: 10))
+        Text(shown.uppercased()).font(.mono(9, .bold)).tracking(0.6)
+          .lineLimit(1).truncationMode(.tail).frame(maxWidth: 62)
+      }
+      .foregroundStyle(P.ink)
+      .padding(.horizontal, 7).frame(height: 26)
+      .background(P.panel)
+      .overlay(Rectangle().stroke(P.line, lineWidth: 1))
+      .contentShape(Rectangle())
+    }
+    .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
+    .fixedSize()
+    .help("Стиль для «Перевести» и «Улучшить»: фото, аниме, фурри, 3D. «Авто» узнаёт его по словам в Prompt")
   }
 }
 @available(macOS 26, *)

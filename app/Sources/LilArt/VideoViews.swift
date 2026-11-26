@@ -221,6 +221,7 @@ struct RecentStills: View {
                   Button(option.title) { option.action(still.url) }
                 }
                 Divider()
+                Button("Удалить насовсем…", role: .destructive) { s.deletePicture(at: still.url) }
                 Button("Показать в Finder") {
                   NSWorkspace.shared.activateFileViewerSelecting([still.url])
                 }
@@ -547,8 +548,12 @@ struct VideoStage: View {
       }
       .overlay(alignment: .topTrailing) {
         if let clip = s.selectedClip, !s.busy {
-          FloatButton(symbol: "folder", title: "ПОКАЗАТЬ ФАЙЛ") {
-            NSWorkspace.shared.activateFileViewerSelecting([clip.url])
+          HStack(spacing: 8) {
+            FloatButton(symbol: "folder", title: "ПОКАЗАТЬ ФАЙЛ") {
+              NSWorkspace.shared.activateFileViewerSelecting([clip.url])
+            }
+            FloatButton(symbol: "trash", title: "") { s.delete(clip) }
+              .help("удалить видео насовсем, с диска")
           }
           .padding(16)
         }
@@ -609,6 +614,10 @@ struct ClipStrip: View {
                   lineWidth: clip.id == s.selectedClip?.id ? 2 : 1))
           }
           .buttonStyle(.plain)
+          .contextMenu {
+            Button("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([clip.url]) }
+            Button("Удалить насовсем…", role: .destructive) { s.delete(clip) }
+          }
         }
       }
       .padding(12)

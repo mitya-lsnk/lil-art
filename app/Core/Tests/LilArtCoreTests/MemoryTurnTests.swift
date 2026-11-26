@@ -31,3 +31,11 @@ import Testing
     #expect(!MemoryTurn.llmLoaded(wanted: "", models: [(id: "gemma", loaded: false)]))
   }
 }
+
+@Suite struct MemoryTurnBaseIDTests {
+  @Test func aProfileNamesTheSameModel() {
+    #expect(MemoryTurn.baseID("qwen:hermes") == "qwen")
+    #expect(MemoryTurn.baseID("qwen") == "qwen")
+    #expect(MemoryTurn.baseID("") == "")
+  }
+}

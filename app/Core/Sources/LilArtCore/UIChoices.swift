@@ -19,6 +19,7 @@ struct UIChoices: Codable, Equatable {
   var sampler = 0
   var videoSampler = 0
   var preset: String?
+  var wordStyle = "auto"
   var showSizePad = false
   var upscaleOn = false
   var upscaler: String?
@@ -43,6 +44,7 @@ struct UIChoices: Codable, Equatable {
     choices.sampler = (raw["sampler"] as? NSNumber)?.intValue ?? 0
     choices.videoSampler = (raw["videoSampler"] as? NSNumber)?.intValue ?? 0
     choices.preset = raw["preset"] as? String
+    choices.wordStyle = raw["wordStyle"] as? String ?? "auto"
     choices.showSizePad = raw["showSizePad"] as? Bool ?? false
     choices.upscaleOn = raw["upscaleOn"] as? Bool ?? false
     choices.upscaler = raw["upscaler"] as? String

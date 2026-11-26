@@ -17,7 +17,12 @@ enum MemoryTurn {
 
   /// Whether the chosen model is in oMLX's memory. "model:profile" is the same model.
   static func llmLoaded(wanted: String, models: [(id: String, loaded: Bool)]) -> Bool {
-    let base = wanted.split(separator: ":").first.map(String.init) ?? ""
+    let base = baseID(wanted)
     return models.contains { $0.loaded && (base.isEmpty || $0.id == base) }
+  }
+
+  /// "model:profile" names the model "model".
+  static func baseID(_ wanted: String) -> String {
+    wanted.split(separator: ":").first.map(String.init) ?? ""
   }
 }

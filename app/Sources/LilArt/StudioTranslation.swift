@@ -68,8 +68,10 @@ extension Studio {
   /// One translation with a ceiling on how long it may take. The original text comes back
   /// when it fails or runs out of time.
   func english(for text: String, improve: Bool = false, frame: URL? = nil) async -> String {
+    // the style is read off what the person wrote, before any translation
+    let style = promptStyle.hint(for: prompt + " " + text)
     let out: String? = await withDeadline(improve ? 90 : (translator.engine == .local ? 60 : 15), fallback: nil) { [translator] in
-      await translator.english(for: text, improve: improve, frame: frame)
+      await translator.english(for: text, improve: improve, frame: frame, style: style)
     }
     guard let out else {
       // out of time: whatever is still waiting on the system translator is let go

@@ -141,6 +141,7 @@ struct Gallery: View {
                   Button("Анимировать последним кадром") { s.showGallery = false; s.animate(f, as: .last) }
                   Divider()
                   Button("Показать в Finder") { s.reveal(f) }
+                  Button("Удалить насовсем…", role: .destructive) { s.delete(f) }
                 }
             }
           }
@@ -163,7 +164,7 @@ struct FloatButton: View {
     Button(action: tap) {
       HStack(spacing: 7) {
         Image(systemName: symbol).font(.system(size: 11))
-        Text(title).font(.mono(9, .bold)).tracking(1.2)
+        if !title.isEmpty { Text(title).font(.mono(9, .bold)).tracking(1.2) }
       }
       .foregroundStyle(P.ink)
       .padding(.horizontal, 11).frame(height: 30)

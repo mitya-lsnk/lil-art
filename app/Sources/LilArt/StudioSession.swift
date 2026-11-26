@@ -389,6 +389,7 @@ extension Studio {
     choices.sampler = Int(sampler.rawValue)
     choices.videoSampler = Int(videoSampler.rawValue)
     choices.preset = presets.first(where: { $0.id == chosenPreset })?.name
+    choices.wordStyle = promptStyle.rawValue
     choices.showSizePad = showSizePad
     choices.upscaleOn = upscaleOn
     choices.upscaler = upscaler

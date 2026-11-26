@@ -12,7 +12,7 @@ import Testing
       names == [
         "aspect", "megapixels", "model", "preset", "pro", "quality", "sampler",
         "showSizePad", "tab", "upscaleFactor", "upscaleOn", "upscaler", "videoModel", "videoPro",
-        "videoSampler", "videoSizeIndex",
+        "videoSampler", "videoSizeIndex", "wordStyle",
       ])
   }
 

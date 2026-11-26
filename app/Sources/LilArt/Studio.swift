@@ -18,6 +18,8 @@ final class Studio: ObservableObject {
   @Published var quality: Quality = .normal
   @Published var batch = 1
   @Published var chosenPreset: UUID?
+  /// What kind of picture the translator and the improver write for; «авто» reads the prompt.
+  @Published var promptStyle: PromptStyle = .auto
 
   @Published var tab: Tab = .image {
     didSet {
@@ -501,6 +503,7 @@ final class Studio: ObservableObject {
     megapixels = Megapixels(rawValue: saved.megapixels) ?? megapixels
     quality = Quality(rawValue: saved.quality) ?? quality
     chosenPreset = presets.first(where: { $0.name == saved.preset })?.id
+    promptStyle = PromptStyle(saved: saved.wordStyle)
     // switching pro on seeds the manual fields from the model's own numbers
     pro = saved.pro
     if let sampler = SamplerType(rawValue: Int8(clamping: saved.sampler)), pro { self.sampler = sampler }

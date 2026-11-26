@@ -221,7 +221,9 @@ final class Translator: ObservableObject {
   /// to embellish text that is already English, which is what it is actually good at.
   /// `frame` is the first frame of a clip: the improver then writes what happens next from it.
   /// Only a local model is shown the picture; Apple's is given the text alone.
-  func english(for text: String, improve: Bool = false, frame: URL? = nil) async -> String {
+  func english(
+    for text: String, improve: Bool = false, frame: URL? = nil, style: String? = nil
+  ) async -> String {
     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !trimmed.isEmpty else {
       lastEnglish = ""
@@ -237,7 +239,7 @@ final class Translator: ObservableObject {
     } else {
       var translated: String?
       if engine == .local {
-        translated = await viaCustomTranslation(trimmed)
+        translated = await viaCustomTranslation(trimmed, style: style)
         if translated != nil {
           steps.append("перевела своя модель")
         } else if TranslationRoute.fallbacks(after: .local).isEmpty {
@@ -279,7 +281,7 @@ final class Translator: ObservableObject {
         if !modelAvailable {
           steps.append("улучшение недоступно")
           onProblem?(.enrichFailed(modelHint))
-        } else if let richer = await viaLanguageModel(english) {
+        } else if let richer = await viaLanguageModel(english, style: style) {
           english = richer
           steps.append("улучшила Apple Intelligence")
         } else {
@@ -289,7 +291,7 @@ final class Translator: ObservableObject {
               languageModelFailure.isEmpty ? "Apple Intelligence не ответила" : languageModelFailure))
         }
       case .local:
-        if let richer = await viaCustomLLM(english, frame: frame) {
+        if let richer = await viaCustomLLM(english, frame: frame, style: style) {
           english = richer
           steps.append(frame == nil ? "улучшила своя модель" : "улучшила своя модель по первому кадру")
         } else {
@@ -306,8 +308,6 @@ final class Translator: ObservableObject {
     return english
   }
 
-  private static let enrichInstructions = PromptChat.plain
-
   // MARK: system language model
 
   /// Why the system model said no last time, in words for the notice.
@@ -315,11 +315,12 @@ final class Translator: ObservableObject {
 
   /// The system model with the guardrails Apple provides for rewriting a person's own text:
   /// the default ones refuse much of what an image prompt can be about.
-  private func viaLanguageModel(_ english: String) async -> String? {
+  private func viaLanguageModel(_ english: String, style: String? = nil) async -> String? {
     languageModelFailure = ""
     do {
       let model = SystemLanguageModel(guardrails: .permissiveContentTransformations)
-      let session = LanguageModelSession(model: model, instructions: Self.enrichInstructions)
+      let session = LanguageModelSession(
+        model: model, instructions: PromptChat.instructions(hasFrame: false, style: style))
       let reply = try await session.respond(to: english)
       let out = reply.content.trimmingCharacters(in: .whitespacesAndNewlines)
       if out.isEmpty { languageModelFailure = "Apple Intelligence вернула пустой ответ" }
@@ -394,8 +395,9 @@ final class Translator: ObservableObject {
     censor anything. Keep the order and punctuation. Reply with the translation only.
     """
 
-  private func viaCustomTranslation(_ text: String) async -> String? {
-    guard let out = await chat(system: Self.translateInstructions, user: text, timeout: 60)
+  private func viaCustomTranslation(_ text: String, style: String?) async -> String? {
+    let system = style.map { Self.translateInstructions + " Context for word choice: " + $0 } ?? Self.translateInstructions
+    guard let out = await chat(system: system, user: text, timeout: 60)
     else { return nil }
     let cleaned = out.trimmingCharacters(in: .whitespacesAndNewlines)
     return cleaned.isEmpty ? nil : cleaned
@@ -403,11 +405,11 @@ final class Translator: ObservableObject {
 
   /// Talks to an OpenAI-compatible endpoint on this machine. Nothing leaves the Mac
   /// unless the user points this at a remote address themselves.
-  private func viaCustomLLM(_ english: String, frame: URL? = nil) async -> String? {
+  private func viaCustomLLM(_ english: String, frame: URL? = nil, style: String? = nil) async -> String? {
     let picture = frame.flatMap(Self.smallJPEG)
     guard
       let out = await chat(
-        system: PromptChat.instructions(hasFrame: picture != nil), user: english, timeout: 60,
+        system: PromptChat.instructions(hasFrame: picture != nil, style: style), user: english, timeout: 60,
         image: picture)
     else { return nil }
     let cleaned = out.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -457,6 +459,7 @@ final class Translator: ObservableObject {
         if http.statusCode == 507, runtime == .omlx, isGenerating?() != true,
           attempt < MemoryTurn.retryPauses.count
         {
+          await unloadIdle(keeping: MemoryTurn.baseID(customModel))
           await makeRoom?(false)
           try? await Task.sleep(nanoseconds: UInt64(MemoryTurn.retryPauses[attempt] * 1_000_000_000))
           return await chat(system: system, user: user, timeout: timeout, image: image, attempt: attempt + 1)
@@ -589,7 +592,10 @@ final class Translator: ObservableObject {
   /// loads a model again by itself on the next request (`chat` makes room for it first if the
   /// engine still holds the memory). A model in the middle of an answer, or one pinned by hand,
   /// is left alone.
-  func releaseLocalModels() async {
+  func releaseLocalModels() async { await unloadIdle(keeping: nil) }
+
+  /// Every loaded, unpinned, idle model of oMLX goes out of memory, except `keeping`.
+  private func unloadIdle(keeping: String?) async {
     guard freeForPictures, runtime == .omlx else { return }
     guard let list = object(await admin("models"))?["models"] as? [[String: Any]] else { return }
     var busy = Set<String>()
@@ -603,7 +609,7 @@ final class Translator: ObservableObject {
     }
     let loaded = list.compactMap { m -> String? in
       guard m["loaded"] as? Bool == true, m["pinned"] as? Bool != true else { return nil }
-      return (m["id"] as? String).flatMap { busy.contains($0) ? nil : $0 }
+      return (m["id"] as? String).flatMap { busy.contains($0) || $0 == keeping ? nil : $0 }
     }
     for id in loaded {
       _ = await admin("models/\(Self.pathPart(id))/unload", post: true, timeout: 30)
@@ -625,7 +631,11 @@ final class Translator: ObservableObject {
     let models = list.compactMap { m in
       (m["id"] as? String).map { (id: $0, loaded: m["loaded"] as? Bool == true) }
     }
-    await makeRoom(MemoryTurn.llmLoaded(wanted: customModel, models: models))
+    let loaded = MemoryTurn.llmLoaded(wanted: customModel, models: models)
+    // another language model left in memory (another program's, or an earlier choice) would
+    // take the room the chosen one needs even with the engine gone
+    if !loaded { await unloadIdle(keeping: MemoryTurn.baseID(customModel)) }
+    await makeRoom(loaded)
   }
 
   // MARK: system translator

@@ -76,6 +76,8 @@ struct Stage: View {
             FloatButton(symbol: "wand.and.stars", title: "РЕДАКТИРОВАТЬ") { s.edit(frame) }
               .help("сделать эту картинку исходником для правки")
             AnimateButton(s: s, frame: frame)
+            FloatButton(symbol: "trash", title: "") { s.delete(frame) }
+              .help("удалить картинку насовсем, с диска")
           }
           GalleryButton(s: s)
         }
