@@ -616,6 +616,9 @@ struct ClipStrip: View {
           .buttonStyle(.plain)
           .contextMenu {
             Button("Показать в Finder") { NSWorkspace.shared.activateFileViewerSelecting([clip.url]) }
+            if !clip.modelFile.isEmpty {
+              Button("Сделать обложкой модели") { s.makeCover(clip) }
+            }
             Button("Удалить насовсем…", role: .destructive) { s.delete(clip) }
           }
         }

@@ -81,6 +81,8 @@ struct Frame: Identifiable {
   let seconds: Double
   /// Has see-through pixels; the stage puts a checkerboard behind it.
   var hasAlpha = false
+  /// The model's file, for «сделать обложкой»; empty for pictures read back from the folder.
+  var modelFile = ""
 }
 /// Where a picture goes on the video tab.
 enum FrameSlot: Hashable {
@@ -115,6 +117,7 @@ struct Clip: Identifiable {
   let took: Double
   /// Read back from the output folder on launch, so the settings behind it are unknown.
   var restored = false
+  var modelFile = ""
 
   var duration: Double { Double(frames) / Double(max(1, fps)) }
   var sizeLabel: String { "\(width) × \(height)" }

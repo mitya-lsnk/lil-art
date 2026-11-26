@@ -141,6 +141,9 @@ struct Gallery: View {
                   Button("Анимировать последним кадром") { s.showGallery = false; s.animate(f, as: .last) }
                   Divider()
                   Button("Показать в Finder") { s.reveal(f) }
+                  if !f.modelFile.isEmpty {
+                    Button("Сделать обложкой модели") { s.makeCover(f) }
+                  }
                   Button("Удалить насовсем…", role: .destructive) { s.delete(f) }
                 }
             }

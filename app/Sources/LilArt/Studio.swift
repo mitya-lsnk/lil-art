@@ -20,6 +20,8 @@ final class Studio: ObservableObject {
   @Published var chosenPreset: UUID?
   /// What kind of picture the translator and the improver write for; «авто» reads the prompt.
   @Published var promptStyle: PromptStyle = .auto
+  /// Moves when a model's cover changes, so the cards draw it again.
+  @Published var coverStamp = 0
 
   @Published var tab: Tab = .image {
     didSet {

@@ -410,10 +410,15 @@ extension Studio {
     let pixels =
       image.representations.first.map { ($0.pixelsWide, $0.pixelsHigh) }
       ?? (request.width, request.height)
+    let seconds = Date().timeIntervalSince(started)
     let frame = Frame(
       image: image, url: url, model: job.modelName, prompt: request.prompt, seed: request.seed,
-      steps: steps, width: pixels.0, height: pixels.1, seconds: Date().timeIntervalSince(started),
-      hasAlpha: hasAlpha)
+      steps: steps, width: pixels.0, height: pixels.1, seconds: seconds,
+      hasAlpha: hasAlpha, modelFile: request.model)
+    // only the numbers, to say on the models page how fast this model is
+    RunTimes.add(
+      RunTime(width: request.width, height: request.height, steps: steps, frames: 0, seconds: seconds),
+      for: request.model, in: .standard)
     frames.insert(frame, at: 0)
     addStill(url)
     if job.tab == .edit {
@@ -467,6 +472,11 @@ extension Studio {
       }
       // the model's own time, before any frames are drawn in: that is what the estimate predicts
       rememberVideoRate(request, seconds: Date().timeIntervalSince(started), frames: pngs.count)
+      RunTimes.add(
+        RunTime(
+          width: request.width, height: request.height, steps: request.steps, frames: pngs.count,
+          seconds: Date().timeIntervalSince(started)),
+        for: request.model, in: .standard)
       if id == runID, job.finish != .asIs { status = "дорисовываю кадры: \(job.finish.label)" }
       let written = try await VideoWriter.write(
         pngs: pngs, fps: job.fps, finish: job.finish, to: url, format: job.format)
@@ -477,7 +487,7 @@ extension Studio {
         url: url, poster: pngs.first.flatMap { NSImage(data: $0) } ?? NSImage(),
         prompt: request.prompt, seed: request.seed, frames: written.frames, fps: written.fps,
         width: request.width, height: request.height, steps: request.steps,
-        took: Date().timeIntervalSince(started))
+        took: Date().timeIntervalSince(started), modelFile: request.model)
       clips.insert(clip, at: 0)
       if id == runID {
         show(clip)

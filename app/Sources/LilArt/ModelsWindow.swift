@@ -110,7 +110,14 @@ private struct InstalledPane: View {
           ForEach(library.jobs) { job in
             JobRow(library: library, job: job)
           }
-          ForEach(library.visible) { model in
+          let cards = library.visible.filter { $0.role == .checkpoint }
+          if !cards.isEmpty {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)], spacing: 10) {
+              ForEach(cards) { model in ModelCard(s: s, library: library, model: model) }
+            }
+            .padding(.bottom, 6)
+          }
+          ForEach(library.visible.filter { $0.role != .checkpoint }) { model in
             InstalledRow(s: s, library: library, model: model)
           }
           if library.jobs.isEmpty, library.visible.isEmpty {
@@ -124,6 +131,12 @@ private struct InstalledPane: View {
       HStack {
         Text(library.modelsDir.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
         Spacer()
+        Button("стереть время запусков") {
+          RunTimes.clear(in: .standard)
+          s.coverStamp += 1
+        }
+        .buttonStyle(.plain).foregroundStyle(P.muted)
+        .help("забыть, сколько длились генерации: время в карточках начнёт считаться заново")
         Text(String(format: "Занято моделями: %.1f ГБ", Double(library.totalBytes) / 1_073_741_824))
       }
       .font(.mono(9)).foregroundStyle(P.muted)
@@ -262,6 +275,26 @@ private struct InstalledRow: View {
           s.selectModel(model.file)
         }
       }
+      ModelMenu(s: s, library: library, model: model) { squeezing = true }
+    }
+    .padding(.horizontal, 12).padding(.vertical, 10)
+    .background(P.panel)
+    .overlay(Rectangle().stroke(s.model == model.file ? P.line : P.hair, lineWidth: 1))
+    .sheet(isPresented: Binding(get: { squeezing }, set: { squeezing = $0 })) {
+      CompressSheet(library: library, model: model)
+    }
+  }
+}
+
+/// What can be done with one installed model, behind the three dots.
+@available(macOS 26, *)
+private struct ModelMenu: View {
+  @ObservedObject var s: Studio
+  @ObservedObject var library: ModelLibrary
+  let model: InstalledModel
+  let squeeze: () -> Void
+
+  var body: some View {
       Menu {
         Button("Показать в Finder") { library.reveal(model) }
         switch model.storage {
@@ -276,7 +309,10 @@ private struct InstalledRow: View {
           EmptyView()
         }
         if model.canCompress {
-          Button("Сжать…") { squeezing = true }
+          Button("Сжать…") { squeeze() }
+        }
+        if Covers.image(for: model.file) != nil {
+          Button("Убрать обложку") { s.removeCover(model.file) }
         }
         Divider()
         Button("Удалить", role: .destructive) { library.delete(model) }
@@ -289,12 +325,90 @@ private struct InstalledRow: View {
       }
       .menuStyle(.button).buttonStyle(.plain).menuIndicator(.hidden)
       .fixedSize()
+  }
+}
+
+/// A picture or video model as a card: its cover, what it is, the settings saved for it and
+/// how long it usually takes here.
+@available(macOS 26, *)
+private struct ModelCard: View {
+  @ObservedObject var s: Studio
+  @ObservedObject var library: ModelLibrary
+  let model: InstalledModel
+
+  @State private var squeezing = false
+
+  private var chosen: Bool { s.model == model.file || s.videoModel == model.file }
+
+  private var saved: String? {
+    guard let r = ModelPrefs.load(model.file) else { return nil }
+    return "сохранено: " + RunTimes.steps(r.steps) + String(format: " · CFG %g · ", r.cfg)
+      + (Samplers.all.first { $0.0 == r.sampler }?.1 ?? "")
+  }
+
+  private var where_: String? {
+    switch model.storage {
+    case .mac: return nil
+    case .external(let disk): return "на диске \(disk)"
+    case .offline(let disk): return "диск \(disk) не подключён"
     }
-    .padding(.horizontal, 12).padding(.vertical, 10)
+  }
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      cover
+        .frame(height: 140).frame(maxWidth: .infinity).clipped()
+        .overlay(Rectangle().frame(height: 1).foregroundStyle(P.hair), alignment: .bottom)
+      VStack(alignment: .leading, spacing: 5) {
+        Text(model.name).font(.sans(13, .bold)).foregroundStyle(P.ink).lineLimit(2)
+          .truncationMode(.middle).frame(minHeight: 34, alignment: .topLeading)
+          .help(model.file)
+        Text(([model.familyLabel.isEmpty ? model.role.badge : model.familyLabel.uppercased()]
+          + [model.sizeLabel, model.precision].compactMap { $0 }).joined(separator: " · "))
+          .font(.mono(8, .bold)).tracking(0.6).foregroundStyle(P.muted).lineLimit(1)
+        if let where_ {
+          Text(where_).font(.mono(9)).foregroundStyle(P.muted).lineLimit(1)
+        }
+        Label {
+          Text(RunTimes.summary(of: model.file, in: .standard)?.label ?? "время появится после первой генерации")
+            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+        } icon: { Image(systemName: "clock") }
+        .font(.mono(9)).foregroundStyle(P.ink)
+        if let saved {
+          Text(saved).font(.mono(9)).foregroundStyle(P.muted).lineLimit(1)
+        }
+        HStack(spacing: 6) {
+          if !model.storage.isOffline {
+            SmallButton(title: chosen ? "Выбрана" : "Выбрать", strong: !chosen) {
+              if VideoFamily.isVideo(model.family) { s.selectVideoModel(model.file) } else { s.selectModel(model.file) }
+            }
+          }
+          Spacer(minLength: 0)
+          ModelMenu(s: s, library: library, model: model) { squeezing = true }
+        }
+        .padding(.top, 3)
+      }
+      .padding(10)
+    }
     .background(P.panel)
-    .overlay(Rectangle().stroke(s.model == model.file ? P.line : P.hair, lineWidth: 1))
-    .sheet(isPresented: Binding(get: { squeezing }, set: { squeezing = $0 })) {
-      CompressSheet(library: library, model: model)
+    .overlay(Rectangle().stroke(chosen ? P.accent : P.hair, lineWidth: chosen ? 2 : 1))
+    .sheet(isPresented: $squeezing) { CompressSheet(library: library, model: model) }
+  }
+
+  @ViewBuilder private var cover: some View {
+    let _ = s.coverStamp
+    if let image = Covers.image(for: model.file) {
+      Image(nsImage: image).resizable().scaledToFill()
+    } else {
+      ZStack {
+        P.panel2
+        VStack(spacing: 6) {
+          Text(model.familyLabel.isEmpty ? "?" : model.familyLabel)
+            .font(.mono(15, .bold)).tracking(1).foregroundStyle(P.muted)
+          Text("обложка: кнопка ✓ на своей картинке")
+            .font(.mono(8)).foregroundStyle(P.muted.opacity(0.8))
+        }
+      }
     }
   }
 }
