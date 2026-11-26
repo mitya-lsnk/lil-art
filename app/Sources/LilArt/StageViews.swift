@@ -76,6 +76,11 @@ struct Stage: View {
             FloatButton(symbol: "wand.and.stars", title: "РЕДАКТИРОВАТЬ") { s.edit(frame) }
               .help("сделать эту картинку исходником для правки")
             AnimateButton(s: s, frame: frame)
+            let kept = s.seedLocked && s.lockedSeed == frame.seed
+            FloatButton(symbol: kept ? "lock.fill" : "lock.open", title: kept ? "SEED" : "") { s.keepSeed(frame.seed) }
+              .help(kept
+                ? "Seed \(frame.seed) закреплён: следующие генерации начнутся с него. Нажмите, чтобы снова был случайный"
+                : "закрепить Seed этой картинки (\(frame.seed)) до закрытия программы: меняйте настройки и смотрите, что меняется")
             if !frame.modelFile.isEmpty {
               FloatButton(symbol: "photo.badge.checkmark", title: "") { s.makeCover(frame) }
                 .help("сделать эту картинку обложкой модели в списке моделей")

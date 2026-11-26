@@ -46,6 +46,7 @@ struct ModelsWindow: View {
 private struct InstalledPane: View {
   @ObservedObject var s: Studio
   @ObservedObject var library: ModelLibrary
+  @State private var showTechnical = false
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -117,8 +118,30 @@ private struct InstalledPane: View {
             }
             .padding(.bottom, 6)
           }
-          ForEach(library.visible.filter { $0.role != .checkpoint }) { model in
+          ForEach(library.visible.filter { $0.role == .lora }) { model in
             InstalledRow(s: s, library: library, model: model)
+          }
+          let technical = library.visible.filter { $0.role != .checkpoint && $0.role != .lora }
+          if !technical.isEmpty {
+            // VAE, text encoders and upscalers work behind the scenes: out of sight until asked for
+            DisclosureGroup(
+              isExpanded: Binding(
+                // chosen with the filter chips above, they are shown open
+                get: { showTechnical || library.roleFilter == .part || library.roleFilter == .upscaler },
+                set: { showTechnical = $0 })
+            ) {
+              VStack(spacing: 6) {
+                ForEach(technical) { model in InstalledRow(s: s, library: library, model: model) }
+              }
+              .padding(.top, 6)
+            } label: {
+              Text("Технические: VAE, кодировщики, апскейлеры · \(technical.count)")
+                .font(.mono(10, .bold)).tracking(0.6).foregroundStyle(P.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+                .onTapGesture { withAnimation(.easeOut(duration: 0.15)) { showTechnical.toggle() } }
+            }
+            .padding(.horizontal, 4).padding(.top, 8)
           }
           if library.jobs.isEmpty, library.visible.isEmpty {
             Text(library.installed.isEmpty ? "Моделей пока нет. Скачайте из каталога или добавьте файл" : "Ничего не нашлось")
@@ -360,23 +383,23 @@ private struct ModelCard: View {
         .frame(height: 140).frame(maxWidth: .infinity).clipped()
         .overlay(Rectangle().frame(height: 1).foregroundStyle(P.hair), alignment: .bottom)
       VStack(alignment: .leading, spacing: 5) {
+        // every line keeps its height whether it is filled or not, so all cards are one size
         Text(model.name).font(.sans(13, .bold)).foregroundStyle(P.ink).lineLimit(2)
-          .truncationMode(.middle).frame(minHeight: 34, alignment: .topLeading)
+          .truncationMode(.middle).frame(height: 34, alignment: .topLeading)
+          .frame(maxWidth: .infinity, alignment: .leading)
           .help(model.file)
         Text(([model.familyLabel.isEmpty ? model.role.badge : model.familyLabel.uppercased()]
           + [model.sizeLabel, model.precision].compactMap { $0 }).joined(separator: " · "))
           .font(.mono(8, .bold)).tracking(0.6).foregroundStyle(P.muted).lineLimit(1)
-        if let where_ {
-          Text(where_).font(.mono(9)).foregroundStyle(P.muted).lineLimit(1)
-        }
         Label {
           Text(RunTimes.summary(of: model.file, in: .standard)?.label ?? "время появится после первой генерации")
-            .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+            .lineLimit(2)
         } icon: { Image(systemName: "clock") }
         .font(.mono(9)).foregroundStyle(P.ink)
-        if let saved {
-          Text(saved).font(.mono(9)).foregroundStyle(P.muted).lineLimit(1)
-        }
+        .frame(height: 26, alignment: .topLeading)
+        Text(where_ ?? saved ?? "настройки не сохранены")
+          .font(.mono(9)).foregroundStyle(P.muted).lineLimit(1).truncationMode(.tail)
+          .help(saved ?? "")
         HStack(spacing: 6) {
           if !model.storage.isOffline {
             SmallButton(title: chosen ? "Выбрана" : "Выбрать", strong: !chosen) {

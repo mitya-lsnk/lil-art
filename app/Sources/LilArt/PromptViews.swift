@@ -13,7 +13,9 @@ struct PromptBox: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 7) {
       HStack {
-        Cap(text: "Prompt")
+        Cap(text: "Prompt").fixedSize()
+        // here rather than among the buttons below: that row is already as wide as the sidebar
+        StyleButton(s: s)
         // What a run will send, so the person never has to guess. It sits up here, where it
         // may shrink: in the row of buttons below, a line that did not fit pushed the whole
         // sidebar wider than the window.
@@ -58,7 +60,6 @@ struct PromptBox: View {
 
         HStack(spacing: 6) {
           MagicButton(s: s).fixedSize()
-          StyleButton(s: s)
           Spacer(minLength: 4)
           PresetButton(s: s)
         }

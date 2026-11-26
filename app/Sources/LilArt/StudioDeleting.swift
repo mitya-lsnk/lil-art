@@ -34,6 +34,19 @@ extension Studio {
     }
   }
 
+  /// The seed of a picture becomes the one every next run starts from, until the program is
+  /// closed (the seed is never saved); pressed again on the same picture, it lets go.
+  func keepSeed(_ seed: UInt32) {
+    if seedLocked, lockedSeed == seed {
+      seedLocked = false
+      status = "Seed снова случайный"
+    } else {
+      lockedSeed = seed
+      seedLocked = true
+      status = "Seed \(seed) закреплён"
+    }
+  }
+
   func delete(_ frame: Frame) {
     guard confirmDelete("картинку", frame.url), erase(frame.url) else { return }
     forgetPicture(frame.url)
